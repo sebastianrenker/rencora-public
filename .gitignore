@@ -1,0 +1,35 @@
+# ── Secrets & personal config ────────────────────────────────
+# Copy the *.example.json files, drop the ".example", and fill in your values.
+config/*.json
+!config/*.example.json
+config/certs/
+config/*.jpg
+config/*.db
+
+# ── Runtime data (created at runtime, never commit) ──────────
+uploads/
+brain.db
+*.db
+*.log
+memory/long_term.json
+dashboard/static/models/
+
+# ── Build / binaries ─────────────────────────────────────────
+*.exe
+build/
+dist/
+*.spec
+
+# ── Python ───────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+
+# ── OS / editor ──────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

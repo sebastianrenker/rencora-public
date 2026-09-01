@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RENCORA</title>
+<style>
+  :root{ --cy:#38e6ff; --cy2:#0a9dff; --dim:#0b5f8f; --bg:#02060c; --panel:rgba(8,26,42,.28); }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:var(--bg);overflow:hidden;
+    font-family:'Consolas','SF Mono','Courier New',monospace;color:#bfeeff;cursor:default;}
+  canvas{position:fixed;inset:0;}
+  #bg{z-index:0;} #hand{z-index:40;pointer-events:none;}
+  #cam{position:fixed;bottom:14px;right:14px;width:180px;height:135px;object-fit:cover;
+    transform:scaleX(-1);border:1px solid var(--dim);border-radius:8px;opacity:.5;z-index:30;
+    box-shadow:0 0 20px #0006;background:#010309;}
+  .ui{position:fixed;z-index:20;}
+  #hdr{top:14px;left:0;right:0;text-align:center;pointer-events:none;}
+  #hdr .brand{font-size:26px;letter-spacing:14px;color:#eaffff;text-shadow:0 0 16px var(--cy2);}
+  #hdr .sub{font-size:11px;letter-spacing:6px;color:var(--dim);margin-top:2px;}
+  .panel{position:fixed;z-index:20;background:var(--panel);border:1px solid rgba(56,230,255,.3);
+    border-radius:10px;backdrop-filter:blur(3px);box-shadow:0 0 24px rgba(10,157,255,.12),inset 0 0 30px rgba(10,157,255,.05);}
+  .panel .ttl{font-size:10px;letter-spacing:3px;color:var(--cy);opacity:.85;padding:8px 12px 4px;
+    border-bottom:1px solid rgba(56,230,255,.15);text-shadow:0 0 8px var(--cy2);}
+  #sysPanel{left:16px;top:70px;width:230px;padding-bottom:10px;}
+  .row{display:flex;justify-content:space-between;font-size:11px;padding:5px 12px;color:#8fd8ff;}
+  .row b{color:#eaffff;font-weight:400;}
+  .bar{height:4px;background:rgba(56,230,255,.12);border-radius:2px;margin:2px 12px 6px;overflow:hidden;}
+  .bar>i{display:block;height:100%;background:linear-gradient(90deg,var(--cy2),var(--cy));box-shadow:0 0 8px var(--cy);}
+  #chat{right:16px;top:70px;width:300px;bottom:170px;display:flex;flex-direction:column;}
+  #feed{flex:1;overflow-y:auto;padding:8px 10px;display:flex;flex-direction:column;gap:6px;}
+  #feed::-webkit-scrollbar{width:4px;}#feed::-webkit-scrollbar-thumb{background:var(--dim);}
+  .msg{font-size:12px;line-height:1.4;padding:6px 9px;border-radius:6px;max-width:92%;word-wrap:break-word;}
+  .msg .lbl{font-size:9px;letter-spacing:2px;opacity:.7;margin-bottom:2px;}
+  .m-j{align-self:flex-start;background:rgba(56,230,255,.09);border-left:2px solid var(--cy);}
+  .m-u{align-self:flex-end;background:rgba(10,157,255,.14);border-right:2px solid var(--cy2);text-align:right;}
+  .m-s{align-self:center;font-size:10px;color:var(--dim);letter-spacing:1px;}
+  #dock{left:0;right:0;bottom:0;height:150px;display:flex;flex-direction:column;align-items:center;
+    justify-content:flex-end;padding-bottom:16px;gap:10px;pointer-events:none;}
+  #status{font-size:11px;letter-spacing:4px;color:var(--cy);text-shadow:0 0 10px var(--cy2);}
+  #inbar{display:flex;gap:8px;pointer-events:auto;width:min(560px,80vw);}
+  #inp{flex:1;background:rgba(8,26,42,.5);border:1px solid rgba(56,230,255,.35);border-radius:8px;
+    color:#eaffff;font-family:inherit;font-size:14px;padding:11px 14px;outline:none;}
+  #inp:focus{border-color:var(--cy);box-shadow:0 0 14px rgba(56,230,255,.3);}
+  .btn{pointer-events:auto;background:rgba(10,157,255,.16);border:1px solid var(--cy2);color:#eaffff;
+    font-family:inherit;font-size:12px;letter-spacing:2px;padding:11px 16px;border-radius:8px;cursor:pointer;
+    text-shadow:0 0 8px var(--cy2);transition:.15s;user-select:none;}
+  .btn:hover,.btn.hot{background:var(--cy2);color:#02121f;box-shadow:0 0 18px var(--cy);}
+  .btn.rec{background:#ff2f4f;border-color:#ff8f8f;box-shadow:0 0 18px #ff2f4f;color:#fff;}
+  #hint{position:fixed;left:16px;bottom:14px;z-index:20;font-size:10px;color:var(--dim);
+    letter-spacing:1px;line-height:1.6;max-width:240px;}
+  #hint b{color:var(--cy);}
+  #cursor{position:fixed;z-index:50;width:26px;height:26px;margin:-13px 0 0 -13px;pointer-events:none;
+    border:2px solid var(--cy);border-radius:50%;box-shadow:0 0 14px var(--cy);opacity:0;transition:opacity .2s,transform .05s;}
+  #cursor.pinch{transform:scale(.55);background:rgba(56,230,255,.4);}
+  #cursor::after{content:'';position:absolute;inset:9px;border-radius:50%;background:var(--cy);box-shadow:0 0 8px var(--cy);}
+  .flash{animation:fl .4s;}@keyframes fl{0%{background:rgba(56,230,255,.45)}100%{}}
+  #boot{position:fixed;inset:0;z-index:100;background:var(--bg);display:flex;align-items:center;justify-content:center;
+    flex-direction:column;gap:14px;transition:opacity .8s;}
+  #boot .b1{font-size:30px;letter-spacing:16px;color:#eaffff;text-shadow:0 0 20px var(--cy2);}
+  #boot .b2{font-size:11px;letter-spacing:5px;color:var(--dim);}
+</style>
+<script src="/static/identity.js"></script>
+<script src="/static/vision.js"></script>
+<script src="/static/face.js"></script>
+</head>
+<body>
+<canvas id="bg"></canvas>
+<canvas id="hand"></canvas>
+<video id="cam" autoplay playsinline muted></video>
+<div id="cursor"></div>
+
+<div id="hdr" class="ui"><div class="brand ident-name">RENCORA</div><div class="sub">HOLOGRAPHIC ASSISTANT INTERFACE</div></div>
+
+<div id="sysPanel" class="panel">
+  <div class="ttl">SYSTEM // STATUS</div>
+  <div class="row"><span>ASSISTANT</span><b id="s-assist">OFFLINE</b></div>
+  <div class="row"><span>GESTURE</span><b id="s-gest">INIT…</b></div>
+  <div class="row"><span>HANDS</span><b id="s-hands">0</b></div>
+  <div class="row"><span>UPLINK</span><b id="s-link">—</b></div>
+  <div class="row"><span>CORE LOAD</span><b id="s-load">0%</b></div>
+  <div class="bar"><i id="s-loadbar" style="width:0%"></i></div>
+</div>
+
+<div id="chat" class="panel">
+  <div class="ttl">COMMS // FEED</div>
+  <div id="feed"></div>
+</div>
+
+<div id="dock" class="ui">
+  <div id="status">CORE ONLINE</div>
+  <div id="inbar">
+    <input id="inp" placeholder="Befehl an Rencora…" autocomplete="off">
+    <div class="btn" id="voiceBtn" data-act="voice">VOICE</div>
+    <div class="btn" id="wakeBtn" data-act="wake">WAKE</div>
+  </div>
+</div>
+
+<div id="hint">
+  <b>PINCH</b> (Daumen+Zeige) = klicken · <b>FAUST</b> = Wake<br>
+  <b>Zeigefinger</b> = Cursor · <b>Handfläche</b> zeigen = aktiv<br>
+  Ohne Kamera: <b>Maus</b> bewegen + <b>klicken</b> simuliert die Hand.
+</div>
+
+<div id="boot"><div class="b1 ident-name">RENCORA</div><div class="b2" id="bootTxt">INITIALIZING CORE…</div></div>
+
+<script type="module">
+/* ==========================================================================
+   RENCORA — Holographic assistant interface with webcam hand control.
+   Front-end original work (Rencora). Talks to the Mark-LI FastAPI backend
+   (dashboard/server.py) via the same contract as app.html:
+     auth: sessionStorage['jarvis_token']   command: POST /api/command {text}
+     live: WS /ws  ->  {type:'log'|'status'|'sys'|'wake', ...}
+   Upstream engine: Mark 51/Mark-LI by FatihMakes, CC BY-NC 4.0 — see NOTICE.md.
+   ========================================================================== */
+
+// ---------- Canvas / hologram background ----------
+const bg = document.getElementById('bg'), bx = bg.getContext('2d');
+const hc = document.getElementById('hand'), hx = hc.getContext('2d');
+let W,H,DPR=Math.min(devicePixelRatio||1,2);
+function resize(){ W=innerWidth;H=innerHeight;
+  for(const cv of [bg,hc]){cv.width=W*DPR;cv.height=H*DPR;cv.style.width=W+'px';cv.style.height=H+'px';}
+  bx.setTransform(DPR,0,0,DPR,0,0); hx.setTransform(DPR,0,0,DPR,0,0);}
+addEventListener('resize',resize); resize();
+
+function gArc(x,y,r,a0,a1,c,w,b){bx.strokeStyle=c;bx.lineWidth=w;bx.shadowColor=c;bx.shadowBlur=b;
+  bx.beginPath();bx.arc(x,y,r,a0,a1);bx.stroke();}
+function gDot(x,y,r,c,b){bx.fillStyle=c;bx.shadowColor=c;bx.shadowBlur=b;bx.beginPath();bx.arc(x,y,r,0,7);bx.fill();}
+
+let zoom=1, zoomTarget=1;
+function drawReactor(t){
+  const cx=W/2, cy=H/2, base=Math.min(W,H)*0.26*zoom;
+  bx.globalCompositeOperation='lighter'; bx.lineCap='round';
+  const _id=(window.IDENT&&window.IDENT.cur)||{cy:'#38e6ff',cy2:'#0a9dff'};
+  const CY=_id.cy, CY2=_id.cy2;
+  const pulse=0.85+Math.sin(t*3)*0.12;
+  gDot(cx,cy,base*0.14*pulse,CY,40); gDot(cx,cy,base*0.075*pulse,'#eafcff',26);
+  for(let k=1;k<=3;k++) gArc(cx,cy,base*(0.26+k*0.11),0,7,CY2,1.6,12);
+  for(let i=0;i<8;i++){const a0=t*0.5+i/8*7, a1=a0+0.34; gArc(cx,cy,base*0.6,a0,a1,CY,6,16);}
+  for(let i=0;i<16;i++){const a0=-t*0.8+i/16*7, a1=a0+0.16; gArc(cx,cy,base*0.78,a0,a1,CY2,3,12);}
+  // outer ticks
+  for(let i=0;i<72;i++){const a=i/72*7; const r0=(i%6===0)?base*0.9:base*0.95;
+    bx.strokeStyle=CY;bx.globalAlpha=.35;bx.lineWidth=1;bx.shadowBlur=4;bx.shadowColor=CY;
+    bx.beginPath();bx.moveTo(cx+Math.cos(a)*r0,cy+Math.sin(a)*r0);bx.lineTo(cx+Math.cos(a)*base*1.0,cy+Math.sin(a)*base*1.0);bx.stroke();}
+  bx.globalAlpha=1;
+  gArc(cx,cy,base*1.12,t*0.3,t*0.3+4.6,CY,1.4,10);
+  gArc(cx,cy,base*1.2,-t*0.4,-t*0.4+3.4,CY2,1,8);
+}
+// faint particle field
+const parts=Array.from({length:70},()=>({x:Math.random(),y:Math.random(),s:Math.random()*1.5+.3}));
+function drawField(t){bx.globalCompositeOperation='lighter';
+  for(const p of parts){const x=(p.x*W+t*6*p.s)%W, y=p.y*H; gDot(x,y,p.s*.7,'#0a9dff',6);}}
+
+let t0=performance.now();
+function loop(now){const t=(now-t0)*0.001;
+  bx.setTransform(DPR,0,0,DPR,0,0);
+  bx.globalCompositeOperation='source-over'; bx.fillStyle='rgba(2,6,12,0.35)'; bx.fillRect(0,0,W,H);
+  zoom+=(zoomTarget-zoom)*0.08;
+  drawField(t); drawReactor(t); bx.shadowBlur=0; bx.globalAlpha=1;
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+// live core-load readout (visual flavour)
+setInterval(()=>{const v=30+Math.round(Math.random()*60);
+  document.getElementById('s-load').textContent=v+'%'; document.getElementById('s-loadbar').style.width=v+'%';},1400);
+
+// ---------- Feed / status helpers ----------
+const feed=document.getElementById('feed');
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function add(kind,txt,lbl){const d=document.createElement('div');
+  d.className='msg '+kind; d.innerHTML=(lbl?`<div class="lbl">${lbl}</div>`:'')+esc(txt);
+  feed.appendChild(d); feed.scrollTop=feed.scrollHeight;
+  while(feed.children.length>60) feed.removeChild(feed.firstChild);}
+const jarvis=t=>add('m-j',t,'RENCORA'), me=t=>add('m-u',t,'YOU'), sysm=t=>add('m-s',t,'');
+function setStatus(s){document.getElementById('status').textContent=s;}
+function setAssist(on){document.getElementById('s-assist').textContent=on?'ACTIVE':'SLEEPING';
+  document.getElementById('s-assist').style.color=on?'#7dffa0':'#8fd8ff';}
+
+// ---------- Backend connection (real Mark-LI) ----------
+const TOKEN = sessionStorage.getItem('jarvis_token') || '';
+let DEMO = !TOKEN;                       // no token -> offline demo mode
+let ws=null;
+function connect(){
+  if(DEMO){ document.getElementById('s-link').textContent='DEMO';
+    sysm('Kein Uplink-Token — Demo-Modus. Verbinde über Mark-LI (Remote Control) für echten Betrieb.');
+    jarvis('Demo-Modus aktiv. Gesten und Oberfläche funktionieren; Befehle werden lokal gespiegelt.'); return; }
+  const proto = location.protocol==='https:'?'wss':'ws';
+  ws = new WebSocket(`${proto}://${location.host}/ws?token=${encodeURIComponent(TOKEN)}`);
+  ws.onopen = ()=>{document.getElementById('s-link').textContent='LIVE';setAssist(true);sysm('Uplink zu Rencora-Core aktiv.');};
+  ws.onclose= ()=>{document.getElementById('s-link').textContent='LOST';sysm('Uplink getrennt — Seite neu laden.');};
+  ws.onerror= ()=>{document.getElementById('s-link').textContent='ERR';};
+  ws.onmessage=(e)=>{let m;try{m=JSON.parse(e.data);}catch{return;}
+    if(m.type==='log') add(m.speaker==='jarvis'?'m-j':'m-u', m.text, m.speaker==='jarvis'?'RENCORA':'YOU');
+    else if(m.type==='status') setAssist(m.state==='active');
+    else if(m.type==='wake') sysm('Wake erkannt — verbinde…');
+    else if(m.type==='sys') sysm(m.text);
+  };
+}
+function sendCommand(text){
+  text=text.trim(); if(!text) return; me(text);
+  if(DEMO){ setTimeout(()=>jarvis('(Demo) Verstanden: “'+text+'”. Im Live-Modus führe ich das aus.'),450); return; }
+  fetch('/api/command',{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${TOKEN}`},
+    body:JSON.stringify({text})}).catch(()=>sysm('Command fehlgeschlagen.'));
+}
+function sendWake(){ setStatus('WAKE SIGNAL'); pulseRing();
+  if(DEMO){ setAssist(true); jarvis('(Demo) Ich bin wach. Wie kann ich helfen?'); return; }
+  fetch('/api/wake',{method:'POST',headers:{'Authorization':`Bearer ${TOKEN}`}}).catch(()=>{});
+}
+function pulseRing(){zoomTarget=1.18;setTimeout(()=>zoomTarget=1,260);}
+
+// input wiring
+const inp=document.getElementById('inp');
+inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();sendCommand(inp.value);inp.value='';}});
+document.querySelectorAll('.btn').forEach(b=>b.addEventListener('click',()=>doAct(b.dataset.act,b)));
+function doAct(act,el){
+  if(act==='wake') sendWake();
+  else if(act==='voice') toggleVoice(el);
+}
+
+// ---------- Voice (PCM16 -> /ws/phone-audio -> Gemini Live) ----------
+let voiceOn=false, vWs=null, aCtx=null, micStream=null, node=null;
+async function toggleVoice(el){
+  if(voiceOn){ stopVoice(); el.classList.remove('rec'); el.textContent='VOICE'; return; }
+  if(DEMO){ jarvis('(Demo) Sprachmodus braucht den Live-Uplink zu Mark-LI.'); return; }
+  try{
+    micStream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true}});
+    aCtx=new (window.AudioContext||window.webkitAudioContext)({sampleRate:16000});
+    const src=aCtx.createMediaStreamSource(micStream);
+    node=aCtx.createScriptProcessor(2048,1,1);
+    const proto=location.protocol==='https:'?'wss':'ws';
+    vWs=new WebSocket(`${proto}://${location.host}/ws/phone-audio?token=${encodeURIComponent(TOKEN)}`);
+    vWs.binaryType='arraybuffer';
+    node.onaudioprocess=(ev)=>{ if(!vWs||vWs.readyState!==1)return;
+      const f=ev.inputBuffer.getChannelData(0); const buf=new Int16Array(f.length);
+      for(let i=0;i<f.length;i++){let s=Math.max(-1,Math.min(1,f[i]));buf[i]=s<0?s*0x8000:s*0x7fff;}
+      vWs.send(buf.buffer); };
+    src.connect(node); node.connect(aCtx.destination);
+    voiceOn=true; el.classList.add('rec'); el.textContent='● REC'; setStatus('LISTENING'); sysm('Sprachkanal offen.');
+  }catch(err){ sysm('Mikrofon nicht verfügbar: '+err.message); }
+}
+function stopVoice(){ voiceOn=false; setStatus('CORE ONLINE');
+  try{node&&node.disconnect();}catch{} try{micStream&&micStream.getTracks().forEach(t=>t.stop());}catch{}
+  try{aCtx&&aCtx.close();}catch{} try{vWs&&vWs.close();}catch{} vWs=null;}
+
+// ---------- Pointer state (filled by hands OR mouse) ----------
+const cursorEl=document.getElementById('cursor');
+const P={x:W/2,y:H/2,present:false,pinch:false,fist:false};
+let lastPinch=false, lastFist=false;
+function applyPointer(){
+  cursorEl.style.opacity=P.present?1:0;
+  cursorEl.style.left=P.x+'px'; cursorEl.style.top=P.y+'px';
+  cursorEl.classList.toggle('pinch',P.pinch);
+  // pinch edge -> click element under cursor
+  if(P.pinch&&!lastPinch) pinchClick();
+  if(P.fist&&!lastFist){ sendWake(); }
+  lastPinch=P.pinch; lastFist=P.fist;
+}
+function pinchClick(){
+  const el=document.elementFromPoint(P.x,P.y);
+  if(!el) return;
+  const b=el.closest('.btn'); if(b){ b.classList.add('flash'); setTimeout(()=>b.classList.remove('flash'),400); doAct(b.dataset.act,b); return; }
+  if(el.id==='inp'){ inp.focus(); }
+}
+
+// mouse simulation (fallback / no camera)
+addEventListener('mousemove',e=>{ if(handsActive) return; P.present=true;P.x=e.clientX;P.y=e.clientY; });
+addEventListener('mousedown',e=>{ if(handsActive) return; P.pinch=true; });
+addEventListener('mouseup',  ()=>{ if(handsActive) return; P.pinch=false; });
+
+// ---------- Hand tracking (MediaPipe Tasks Vision) ----------
+const cam=document.getElementById('cam');
+let handsActive=false, landmarker=null, swipeX=null, lastSwipe=0;
+const CONN=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],
+  [9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+
+async function initHands(){
+  const gs=document.getElementById('s-gest');
+  try{
+    const cam0=await navigator.mediaDevices.getUserMedia({video:{width:640,height:480,facingMode:'user'}});
+    cam.srcObject=cam0; await cam.play();
+  }catch(err){ gs.textContent='NO CAM'; gs.style.color='#ffb05a';
+    sysm('Keine Webcam — Maus-Simulation aktiv (bewegen + klicken).'); return; }
+  try{
+    const V=await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs');
+    const files=await V.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
+    landmarker=await V.HandLandmarker.createFromOptions(files,{
+      baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',delegate:'GPU'},
+      numHands:2, runningMode:'VIDEO'});
+    handsActive=true; gs.textContent='TRACKING'; gs.style.color='#7dffa0';
+    sysm('Handtracking aktiv. Zeig deine Handfläche zur Kamera.');
+    requestAnimationFrame(handLoop);
+  }catch(err){ gs.textContent='GPU FAIL'; gs.style.color='#ffb05a';
+    sysm('Handtracking-Modell konnte nicht laden (offline?). Maus-Simulation aktiv.'); console.warn(err); }
+}
+function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}
+function isFist(lm){ // tips (8,12,16,20) curled below their PIP (6,10,14,18)
+  let c=0; [[8,6],[12,10],[16,14],[20,18]].forEach(([t,p])=>{ if(lm[t].y>lm[p].y) c++; }); return c>=3; }
+function handLoop(now){
+  if(!handsActive) return;
+  let res=null; try{ res=landmarker.detectForVideo(cam,now);}catch{}
+  hx.setTransform(DPR,0,0,DPR,0,0); hx.clearRect(0,0,W,H);
+  const hands=res&&res.landmarks?res.landmarks:[];
+  document.getElementById('s-hands').textContent=hands.length;
+  if(hands.length){
+    const lm=hands[0]; // primary hand
+    // draw skeleton (mirrored to match selfie view)
+    hx.globalCompositeOperation='lighter';
+    hx.strokeStyle='#38e6ff';hx.lineWidth=2;hx.shadowColor='#0a9dff';hx.shadowBlur=10;
+    const X=p=>(1-p.x)*W, Y=p=>p.y*H;
+    CONN.forEach(([a,b])=>{hx.beginPath();hx.moveTo(X(lm[a]),Y(lm[a]));hx.lineTo(X(lm[b]),Y(lm[b]));hx.stroke();});
+    lm.forEach(p=>{hx.fillStyle='#eaffff';hx.shadowBlur=8;hx.beginPath();hx.arc(X(p),Y(p),3,0,7);hx.fill();});
+    // pointer = index tip (8); pinch = thumb(4)+index(8) close vs hand size
+    const scale=dist(lm[0],lm[9])||0.1;
+    P.present=true; P.x=X(lm[8]); P.y=Y(lm[8]);
+    P.pinch = dist(lm[4],lm[8])/scale < 0.6;
+    P.fist  = isFist(lm);
+    // two-hand zoom
+    if(hands.length>=2){ const s=dist(hands[0][8],hands[1][8]); zoomTarget=Math.max(.7,Math.min(1.6,s*2.4)); }
+    // swipe (open palm) -> switch status flavour / could page panels
+    if(swipeX!==null && !P.pinch){ const dx=P.x-swipeX; if(Math.abs(dx)>W*0.35 && now-lastSwipe>800){ setStatus(dx>0?'PANEL ▶':'◀ PANEL'); lastSwipe=now; } }
+    swipeX=P.x;
+  } else { P.present=false; P.pinch=false; P.fist=false; swipeX=null; }
+  applyPointer();
+  requestAnimationFrame(handLoop);
+}
+// mouse-mode pointer apply loop
+setInterval(()=>{ if(!handsActive) applyPointer(); },30);
+
+// ---------- Boot ----------
+const bootTxt=document.getElementById('bootTxt');
+const seq=['CALIBRATING OPTICS…','LINKING NEURAL CORE…','ARC REACTOR ONLINE','WELCOME BACK'];
+let si=0; const bt=setInterval(()=>{ bootTxt.textContent=seq[si++]||''; if(si>=seq.length){clearInterval(bt);
+  const b=document.getElementById('boot'); b.style.opacity=0; setTimeout(()=>b.remove(),800);} },650);
+
+connect();
+setAssist(!DEMO);
+setTimeout(initHands, 1200);
+jarvis('Rencora-Interface bereit. Sag „Hey" oder tippe einen Befehl.');
+</script>
+</body>
+</html>

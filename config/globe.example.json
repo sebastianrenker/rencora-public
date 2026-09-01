@@ -1,0 +1,4 @@
+{
+  "_hinweis": "Optionaler Cesium-ion-Token (kostenlos auf ion.cesium.com) schaltet 3D-Gelaende frei. Leer = flacher Satellitenglobus.",
+  "cesium_ion_token": ""
+}

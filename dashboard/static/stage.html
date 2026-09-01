@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RENCORA STAGE</title>
+<style>
+  :root{ --cy:#b06bff; --cy2:#7a3fe0; --dim:#6a4fa0; --core:#f0e6ff; --bg:#03040a; --ok:#5ef2a0; --ink:#e7dcff; }
+  *{box-sizing:border-box;} html,body{margin:0;height:100%;background:var(--bg);overflow:hidden;cursor:none;
+    font-family:'Consolas','SF Mono','Courier New',monospace;color:var(--ink);}
+  canvas{position:fixed;inset:0;z-index:0;}
+  .scan{position:fixed;inset:0;z-index:5;pointer-events:none;
+    background:repeating-linear-gradient(0deg,rgba(255,255,255,.02) 0 1px,transparent 1px 3px);
+    animation:scan 8s linear infinite;} @keyframes scan{to{background-position:0 300px;}}
+  .bracket{position:fixed;width:44px;height:44px;border:2px solid var(--cy);z-index:6;opacity:.5;box-shadow:0 0 10px var(--cy2);}
+  .bl-tl{top:16px;left:16px;border-right:none;border-bottom:none;}
+  .bl-tr{top:16px;right:16px;border-left:none;border-bottom:none;}
+  .bl-bl{bottom:16px;left:16px;border-right:none;border-top:none;}
+  .bl-br{bottom:16px;right:16px;border-left:none;border-top:none;}
+
+  #brand{position:fixed;top:20px;left:0;right:0;text-align:center;font-size:12px;letter-spacing:12px;color:var(--cy);z-index:10;text-shadow:0 0 10px var(--cy2);pointer-events:none;}
+  #clock{position:fixed;top:36px;left:0;right:0;text-align:center;z-index:10;pointer-events:none;}
+  #time{font-size:clamp(46px,8.5vw,104px);font-weight:700;letter-spacing:8px;color:#fff;
+    text-shadow:0 0 26px var(--cy2);line-height:1;font-variant-numeric:tabular-nums;}
+  #date{font-size:clamp(11px,1.5vw,15px);letter-spacing:8px;color:var(--dim);margin-top:8px;text-transform:uppercase;}
+
+  /* identity toggle */
+  #idbtn{position:fixed;top:14px;right:70px;z-index:20;pointer-events:auto;cursor:pointer;
+    background:rgba(255,255,255,.05);border:1px solid var(--cy2);border-radius:20px;padding:7px 14px;
+    color:var(--ink);font-family:inherit;font-size:11px;letter-spacing:2px;display:flex;align-items:center;gap:8px;
+    box-shadow:0 0 14px rgba(0,0,0,.3);transition:.15s;}
+  #idbtn:hover{background:var(--cy2);color:#0a0616;box-shadow:0 0 18px var(--cy);}
+  #idbtn .sw{opacity:.7;}
+
+  .panel{position:fixed;z-index:10;background:rgba(10,8,26,.28);border:1px solid rgba(255,255,255,.14);
+    border-radius:12px;backdrop-filter:blur(2px);box-shadow:0 0 26px rgba(0,0,0,.25);}
+  .ttl{font-size:11px;letter-spacing:4px;color:var(--cy);padding:9px 14px 6px;border-bottom:1px solid rgba(255,255,255,.1);text-shadow:0 0 8px var(--cy2);}
+  #sys{left:26px;top:184px;width:262px;padding-bottom:12px;}
+  .row{display:flex;justify-content:space-between;font-size:12px;padding:6px 14px 2px;color:var(--ink);opacity:.85;letter-spacing:1px;}
+  .row b{color:#fff;font-weight:400;font-variant-numeric:tabular-nums;opacity:1;}
+  .bar{height:5px;margin:2px 14px 8px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden;}
+  .bar>i{display:block;height:100%;background:linear-gradient(90deg,var(--cy2),var(--cy));box-shadow:0 0 8px var(--cy);transition:width .8s;}
+  .state{display:flex;align-items:center;gap:10px;padding:10px 14px 4px;}
+  .state .dot{width:12px;height:12px;border-radius:50%;background:var(--dim);box-shadow:0 0 10px var(--dim);}
+  .state.on .dot{background:var(--ok);box-shadow:0 0 14px var(--ok);animation:blink 1.6s infinite;}
+  .state.speaking .dot{background:var(--cy);box-shadow:0 0 16px var(--cy);animation:blink .6s infinite;}
+  @keyframes blink{50%{opacity:.4}}
+  .state b{font-size:15px;letter-spacing:3px;}
+  #comms{right:26px;top:184px;width:330px;bottom:96px;display:flex;flex-direction:column;}
+  #feed{flex:1;overflow:hidden;padding:10px 12px;display:flex;flex-direction:column;gap:7px;justify-content:flex-end;}
+  .msg{font-size:13px;line-height:1.45;padding:7px 10px;border-radius:7px;max-width:94%;animation:in .35s ease;}
+  @keyframes in{from{opacity:0;transform:translateY(8px);}}
+  .msg .lbl{font-size:9px;letter-spacing:2px;opacity:.7;margin-bottom:2px;}
+  .m-j{align-self:flex-start;background:rgba(255,255,255,.06);border-left:2px solid var(--cy);}
+  .m-u{align-self:flex-end;background:rgba(255,255,255,.09);border-right:2px solid var(--cy2);text-align:right;}
+  .m-s{align-self:center;font-size:10px;color:var(--dim);letter-spacing:1px;}
+  #ticker{position:fixed;left:26px;right:26px;bottom:40px;z-index:10;display:flex;align-items:center;gap:16px;
+    font-size:12px;letter-spacing:2px;color:var(--dim);}
+  #ticker .pill{border:1px solid var(--cy2);color:var(--cy);border-radius:20px;padding:4px 12px;letter-spacing:3px;text-shadow:0 0 8px var(--cy2);white-space:nowrap;}
+  #ticker .line{flex:1;height:1px;background:linear-gradient(90deg,var(--cy2),transparent);}
+  #tickmsg{color:var(--ink);opacity:.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  #boot{position:fixed;inset:0;z-index:100;background:var(--bg);display:flex;align-items:center;justify-content:center;
+    flex-direction:column;gap:12px;transition:opacity .8s;} #boot .b1{font-size:30px;letter-spacing:16px;color:#fff;text-shadow:0 0 20px var(--cy2);}
+  #boot .b2{font-size:11px;letter-spacing:5px;color:var(--dim);}
+</style>
+</head>
+<body>
+<canvas id="bg"></canvas>
+<div class="scan"></div>
+<div class="bracket bl-tl"></div><div class="bracket bl-tr"></div><div class="bracket bl-bl"></div><div class="bracket bl-br"></div>
+
+<div id="brand"><span id="brandName">RENCORA</span> &nbsp;//&nbsp; S T A G E</div>
+<button id="idbtn"><span class="sw">⟳</span><span id="idlabel">RENCORA</span></button>
+<div id="clock"><div id="time">--:--:--</div><div id="date">—</div></div>
+
+<div id="sys" class="panel">
+  <div class="ttl">SYSTEM // CORE</div>
+  <div class="row"><span>CORE LOAD</span><b id="v-cpu">0%</b></div><div class="bar"><i id="b-cpu" style="width:0%"></i></div>
+  <div class="row"><span>MEMORY</span><b id="v-mem">0%</b></div><div class="bar"><i id="b-mem" style="width:0%"></i></div>
+  <div class="row"><span>NETWORK</span><b id="v-net">0%</b></div><div class="bar"><i id="b-net" style="width:0%"></i></div>
+  <div class="row"><span>UPTIME</span><b id="v-up">00:00:00</b></div>
+  <div class="state" id="assistState"><span class="dot"></span><b id="assistTxt">OFFLINE</b></div>
+</div>
+
+<div id="comms" class="panel"><div class="ttl">COMMS // LIVE FEED</div><div id="feed"></div></div>
+
+<div id="ticker">
+  <span class="pill" id="link">UPLINK —</span>
+  <div class="line"></div><span id="tickmsg">Stage bereit.</span><div class="line"></div>
+  <span class="pill" id="statePill">STANDBY</span>
+</div>
+
+<div id="boot"><div class="b1" id="bootBrand">RENCORA</div><div class="b2" id="bootTxt">CONSCIOUSNESS ONLINE…</div></div>
+
+<script>
+/* Rencora Stage — J.A.R.V.I.S.-style neural consciousness orb that pulses while the
+   assistant speaks, + Rencora(purple)/Jarvis(cyan) identity toggle (name+colour only).
+   Live from Mark-LI /ws. Engine Mark-LI/FatihMakes CC BY-NC. */
+
+// ---------- identity (name + colour) ----------
+const IDENT={
+  rencora:{name:'RENCORA',cy:'#b06bff',cy2:'#7a3fe0',dim:'#6a4fa0',core:'#f0e6ff',rgb:[176,107,255]},
+  jarvis :{name:'JARVIS', cy:'#38e6ff',cy2:'#0a9dff',dim:'#0b5f8f',core:'#eafcff',rgb:[56,230,255]},
+};
+let idKey = (localStorage.getItem('rencora_identity')||'rencora');
+if(!IDENT[idKey]) idKey='rencora';
+const ORB={rgb:[176,107,255],core:'#f0e6ff'};
+function applyIdentity(k){ idKey=k; localStorage.setItem('rencora_identity',k); const c=IDENT[k];
+  const r=document.documentElement.style; r.setProperty('--cy',c.cy); r.setProperty('--cy2',c.cy2);
+  r.setProperty('--dim',c.dim); r.setProperty('--core',c.core);
+  ORB.rgb=c.rgb; ORB.core=c.core;
+  document.getElementById('brandName').textContent=c.name;
+  document.getElementById('idlabel').textContent=c.name;
+  document.getElementById('bootBrand').textContent=c.name;
+  document.title=c.name+' STAGE';
+}
+applyIdentity(idKey);
+document.getElementById('idbtn').addEventListener('click',()=>applyIdentity(idKey==='rencora'?'jarvis':'rencora'));
+
+// ---------- neural orb ----------
+const bg=document.getElementById('bg'), bx=bg.getContext('2d');
+let W,H,DPR=Math.min(devicePixelRatio||1,2);
+function resize(){W=innerWidth;H=innerHeight;bg.width=W*DPR;bg.height=H*DPR;bg.style.width=W+'px';bg.style.height=H+'px';bx.setTransform(DPR,0,0,DPR,0,0);}
+addEventListener('resize',resize);resize();
+
+function randUnit(){ let x=0,y=0,z=0,d=0; do{ x=Math.random()*2-1;y=Math.random()*2-1;z=Math.random()*2-1;d=x*x+y*y+z*z;}while(d>1||d<1e-4);
+  const s=1/Math.sqrt(d); return [x*s,y*s,z*s]; }
+function cross(a,b){return [a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];}
+function norm(a){const s=1/(Math.hypot(a[0],a[1],a[2])||1);return[a[0]*s,a[1]*s,a[2]*s];}
+// filaments = smooth random walks on the sphere -> tangled shell
+const NF=26, NP=44; const FIL=[];
+for(let f=0;f<NF;f++){ let p=randUnit(); let t=norm(cross(p,randUnit())); const pts=[];
+  for(let i=0;i<NP;i++){ const rr=1+(Math.random()*2-1)*0.10; pts.push([p[0]*rr,p[1]*rr,p[2]*rr]);
+    p=norm([p[0]+t[0]*0.16,p[1]+t[1]*0.16,p[2]+t[2]*0.16]);
+    const tw=norm(cross(p,t)); const a=(Math.random()*2-1)*0.9;
+    t=norm([t[0]+tw[0]*a*0.16,t[1]+tw[1]*a*0.16,t[2]+tw[2]*a*0.16]);
+    t=norm([t[0]-p[0]*(t[0]*p[0]+t[1]*p[1]+t[2]*p[2]),t[1]-p[1]*(t[0]*p[0]+t[1]*p[1]+t[2]*p[2]),t[2]-p[2]*(t[0]*p[0]+t[1]*p[1]+t[2]*p[2])]); }
+  FIL.push(pts); }
+const PART=Array.from({length:150},()=>{const u=randUnit();const r=0.85+Math.random()*0.25;return [u[0]*r,u[1]*r,u[2]*r];});
+
+function rot(p,yaw,pitch){ const cy=Math.cos(yaw),sy=Math.sin(yaw); const x1=p[0]*cy+p[2]*sy, z1=-p[0]*sy+p[2]*cy;
+  const cx=Math.cos(pitch),sx=Math.sin(pitch); const y1=p[1]*cx - z1*sx, z2=p[1]*sx + z1*cx; return [x1,y1,z2]; }
+
+let energy=0.35, energyTarget=0.35, speaking=false, spokeBump=0;
+let t0=performance.now();
+const LITE_S = localStorage.getItem('rencora_lite')==='1' || new URLSearchParams(location.search).has('lite');
+const FRAME_MS = LITE_S?55:33;                 // cap to ~18fps (lite) / ~30fps — smooth on weak PCs
+let lastFrame=0;
+function frame(now){
+  if(document.hidden){ setTimeout(()=>requestAnimationFrame(frame),250); return; }   // pause when hidden
+  if(now-lastFrame<FRAME_MS){ requestAnimationFrame(frame); return; } lastFrame=now;
+  const t=(now-t0)*0.001;
+  // energy easing
+  const idle=0.32+Math.sin(t*1.3)*0.05; energyTarget=speaking?1.0:(idle+spokeBump);
+  energy+=(energyTarget-energy)*0.12; spokeBump*=0.94;
+  bx.setTransform(DPR,0,0,DPR,0,0); bx.globalCompositeOperation='source-over';
+  bx.fillStyle='rgba(3,4,10,0.34)'; bx.fillRect(0,0,W,H);
+  bx.globalCompositeOperation='lighter'; bx.lineCap='round';
+  const cx=W/2, cy=H*0.54; const scaleBase=Math.min(W,H)*0.30;
+  const scale=scaleBase*(1+0.06*energy*Math.sin(t*7));   // pulse
+  const dist=3.2; const yaw=t*0.32, pitch=0.5+Math.sin(t*0.4)*0.12;
+  const [R,G,B]=ORB.rgb;
+  const proj=p=>{const q=rot(p,yaw,pitch); const f=dist/(dist+q[2]); return [cx+q[0]*f*scale, cy+q[1]*f*scale, f, q[2]];};
+  // filaments
+  bx.shadowColor=`rgb(${R},${G},${B})`; bx.shadowBlur=6+8*energy;
+  for(const pts of FIL){ bx.beginPath();
+    for(let i=0;i<pts.length;i++){ const pr=proj(pts[i]); if(i===0)bx.moveTo(pr[0],pr[1]); else bx.lineTo(pr[0],pr[1]); }
+    const a=0.30+0.55*energy; bx.strokeStyle=`rgba(${R},${G},${B},${a})`;
+    bx.lineWidth=(0.7+1.1*energy); bx.stroke(); }
+  // particles (depth-shaded)
+  bx.shadowBlur=4;
+  for(const p of PART){ const pr=proj(p); const depth=(pr[3]+1.2)/2.4; const a=(0.2+0.7*depth)*(0.5+0.5*energy);
+    bx.fillStyle=`rgba(${R},${G},${B},${a})`; const rr=(0.6+1.1*depth); bx.beginPath();bx.arc(pr[0],pr[1],rr,0,7);bx.fill(); }
+  // core
+  const cpulse=(0.85+Math.sin(t*3)*0.15); const cr=scale*0.16*cpulse*(0.7+0.6*energy);
+  bx.fillStyle=ORB.core; bx.shadowColor=`rgb(${R},${G},${B})`; bx.shadowBlur=40+40*energy;
+  bx.beginPath();bx.arc(cx,cy,cr,0,7);bx.fill();
+  bx.fillStyle=`rgba(${R},${G},${B},0.9)`; bx.shadowBlur=60*energy; bx.beginPath();bx.arc(cx,cy,cr*2.0,0,7);bx.fill();
+  bx.shadowBlur=0;
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+function pulse(){ spokeBump=Math.min(spokeBump+0.4,0.7); }
+
+// ---------- clock / uptime / ambient ----------
+const DAYS=['SONNTAG','MONTAG','DIENSTAG','MITTWOCH','DONNERSTAG','FREITAG','SAMSTAG'];
+const MON=['JAN','FEB','MÄR','APR','MAI','JUN','JUL','AUG','SEP','OKT','NOV','DEZ'];
+function tick(){const d=new Date(),p=n=>String(n).padStart(2,'0');
+  document.getElementById('time').textContent=`${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+  document.getElementById('date').textContent=`${DAYS[d.getDay()]} · ${p(d.getDate())} ${MON[d.getMonth()]} ${d.getFullYear()}`;}
+tick();setInterval(tick,1000);
+const upT0=Date.now();
+setInterval(()=>{const s=Math.floor((Date.now()-upT0)/1000),p=n=>String(n).padStart(2,'0');
+  document.getElementById('v-up').textContent=`${p(Math.floor(s/3600))}:${p(Math.floor(s/60)%60)}:${p(s%60)}`;},1000);
+function amb(id,bid,lo,hi){const v=Math.round(lo+Math.random()*(hi-lo));document.getElementById(id).textContent=v+'%';document.getElementById(bid).style.width=v+'%';}
+function ambientTick(){amb('v-cpu','b-cpu',18,55);amb('v-mem','b-mem',40,68);amb('v-net','b-net',5,40);}
+ambientTick();setInterval(ambientTick,2200);
+
+// ---------- feed / status ----------
+const feed=document.getElementById('feed');
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function add(k,t,l){const d=document.createElement('div');d.className='msg '+k;d.innerHTML=(l?`<div class="lbl">${l}</div>`:'')+esc(t);
+  feed.appendChild(d);while(feed.children.length>8)feed.removeChild(feed.firstChild);}
+function tickmsg(m){document.getElementById('tickmsg').textContent=m;}
+function setState(mode){ const s=document.getElementById('assistState'); s.classList.remove('on','speaking');
+  const pill=document.getElementById('statePill'), txt=document.getElementById('assistTxt');
+  if(mode==='speaking'){s.classList.add('on','speaking');txt.textContent='SPEAKING';pill.textContent='SPEAKING';}
+  else if(mode==='active'){s.classList.add('on');txt.textContent='ACTIVE';pill.textContent='LISTENING';}
+  else{txt.textContent='SLEEPING';pill.textContent='STANDBY';}}
+
+// ---------- backend ----------
+const TOKEN=sessionStorage.getItem('jarvis_token')||''; let DEMO=!TOKEN, ws=null;
+function setLink(t){document.getElementById('link').textContent='UPLINK '+t;}
+function connect(){ if(DEMO){ setLink('DEMO'); demo(); return; }
+  const p=location.protocol==='https:'?'wss':'ws';
+  ws=new WebSocket(`${p}://${location.host}/ws?token=${encodeURIComponent(TOKEN)}`);
+  ws.onopen=()=>{setLink('LIVE');setState('active');tickmsg('Verbunden.');};
+  ws.onclose=()=>{setLink('LOST');setState('sleep');speaking=false;};
+  ws.onerror=()=>setLink('ERR');
+  ws.onmessage=e=>{let m;try{m=JSON.parse(e.data);}catch{return;}
+    if(m.type==='speaking'){ speaking=!!m.value; if(speaking)setState('speaking'); else setState('active'); }
+    else if(m.type==='log'){ add(m.speaker==='jarvis'?'m-j':'m-u',m.text,m.speaker==='jarvis'?IDENT[idKey].name:'YOU');
+      if(m.speaker==='jarvis'){tickmsg(m.text);pulse();} }
+    else if(m.type==='status'){ if(m.state==='active')setState('active'); else{setState('sleep');speaking=false;} }
+    else if(m.type==='wake'){ add('m-s','Wake erkannt…'); setState('active'); }
+    else if(m.type==='sys') add('m-s',m.text);
+  };
+}
+function demo(){ setState('sleep');
+  const script=[['m-s','Demo-Modus.'],['m-u','Rencora, Statusbericht.'],['m-j','Alle Systeme nominal.'],
+    ['m-u','Starte den Druck.'],['m-j','Druckauftrag gesendet. Etwa 2 Stunden 14 Minuten.']];
+  let i=0;(function next(){ if(i>=script.length){ // loop a gentle speaking demo
+      setState('active'); setInterval(()=>{ speaking=true;setState('speaking'); setTimeout(()=>{speaking=false;setState('active');},1600); },6000); return; }
+    const[k,t]=script[i++]; add(k,t,k==='m-j'?IDENT[idKey].name:k==='m-u'?'YOU':'');
+    if(k==='m-j'){tickmsg(t);speaking=true;setState('speaking');pulse();setTimeout(()=>{speaking=false;setState('active');},1500);}
+    setTimeout(next,2400);})();}
+
+const bt=['CALIBRATING FIELD…','LINKING CONSCIOUSNESS…','ONLINE'];let bi=0;
+const bootI=setInterval(()=>{document.getElementById('bootTxt').textContent=bt[bi++]||'';
+  if(bi>=bt.length){clearInterval(bootI);const b=document.getElementById('boot');b.style.opacity=0;setTimeout(()=>b.remove(),800);}},600);
+connect();
+</script>
+</body>
+</html>

@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RENCORA 3D</title>
+<style>
+  :root{ --cy:#38e6ff; --cy2:#0a9dff; --dim:#0b5f8f; --bg:#02060c; }
+  *{box-sizing:border-box;} html,body{margin:0;height:100%;background:var(--bg);overflow:hidden;
+    font-family:'Consolas','SF Mono','Courier New',monospace;color:#bfeeff;cursor:default;}
+  #gl{position:fixed;inset:0;z-index:0;} #hand{position:fixed;inset:0;z-index:40;pointer-events:none;}
+  #cam{position:fixed;bottom:12px;right:12px;width:170px;height:128px;object-fit:cover;transform:scaleX(-1);
+    border:1px solid var(--dim);border-radius:8px;opacity:.45;z-index:30;background:#010309;}
+  #hdr{position:fixed;top:12px;left:0;right:0;text-align:center;z-index:20;pointer-events:none;}
+  #hdr .brand{font-size:24px;letter-spacing:13px;color:#eaffff;text-shadow:0 0 16px var(--cy2);}
+  #hdr .sub{font-size:10px;letter-spacing:5px;color:var(--dim);margin-top:2px;}
+  .panel{position:fixed;z-index:20;background:rgba(8,26,42,.26);border:1px solid rgba(56,230,255,.28);
+    border-radius:10px;backdrop-filter:blur(3px);box-shadow:0 0 24px rgba(10,157,255,.1);}
+  .ttl{font-size:10px;letter-spacing:3px;color:var(--cy);opacity:.85;padding:7px 12px 4px;border-bottom:1px solid rgba(56,230,255,.14);}
+  #sys{left:14px;top:60px;width:210px;padding-bottom:8px;}
+  .row{display:flex;justify-content:space-between;font-size:11px;padding:4px 12px;color:#8fd8ff;}
+  .row b{color:#eaffff;font-weight:400;}
+  #chat{right:14px;top:60px;width:270px;bottom:150px;display:flex;flex-direction:column;}
+  #feed{flex:1;overflow-y:auto;padding:7px 9px;display:flex;flex-direction:column;gap:5px;}
+  #feed::-webkit-scrollbar{width:4px;}#feed::-webkit-scrollbar-thumb{background:var(--dim);}
+  .msg{font-size:11px;line-height:1.4;padding:5px 8px;border-radius:6px;max-width:92%;word-wrap:break-word;}
+  .msg .lbl{font-size:8px;letter-spacing:2px;opacity:.7;margin-bottom:2px;}
+  .m-j{align-self:flex-start;background:rgba(56,230,255,.09);border-left:2px solid var(--cy);}
+  .m-u{align-self:flex-end;background:rgba(10,157,255,.14);border-right:2px solid var(--cy2);text-align:right;}
+  .m-s{align-self:center;font-size:9px;color:var(--dim);}
+  #dock{position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;flex-direction:column;align-items:center;gap:9px;padding-bottom:14px;pointer-events:none;}
+  #shapes{display:flex;gap:8px;pointer-events:auto;}
+  .chip{background:rgba(10,157,255,.12);border:1px solid var(--dim);color:#bfeeff;font-family:inherit;font-size:11px;
+    letter-spacing:1px;padding:7px 12px;border-radius:20px;cursor:pointer;transition:.15s;user-select:none;}
+  .chip.on,.chip:hover{background:var(--cy2);color:#02121f;border-color:var(--cy);box-shadow:0 0 14px var(--cy);}
+  #inbar{display:flex;gap:8px;pointer-events:auto;width:min(520px,78vw);}
+  #inp{flex:1;background:rgba(8,26,42,.5);border:1px solid rgba(56,230,255,.32);border-radius:8px;color:#eaffff;
+    font-family:inherit;font-size:14px;padding:10px 13px;outline:none;}
+  #inp:focus{border-color:var(--cy);box-shadow:0 0 12px rgba(56,230,255,.3);}
+  .btn{pointer-events:auto;background:rgba(10,157,255,.16);border:1px solid var(--cy2);color:#eaffff;font-family:inherit;
+    font-size:12px;letter-spacing:2px;padding:10px 15px;border-radius:8px;cursor:pointer;transition:.15s;user-select:none;}
+  .btn:hover{background:var(--cy2);color:#02121f;box-shadow:0 0 16px var(--cy);} .btn.rec{background:#ff2f4f;border-color:#ff8f8f;color:#fff;}
+  #hint{position:fixed;left:14px;bottom:12px;z-index:20;font-size:10px;color:var(--dim);line-height:1.6;max-width:230px;}
+  #hint b{color:var(--cy);}
+  #boot{position:fixed;inset:0;z-index:100;background:var(--bg);display:flex;align-items:center;justify-content:center;
+    flex-direction:column;gap:12px;transition:opacity .8s;} #boot .b1{font-size:28px;letter-spacing:15px;color:#eaffff;text-shadow:0 0 20px var(--cy2);}
+  #boot .b2{font-size:11px;letter-spacing:5px;color:var(--dim);}
+  #grabhint{position:fixed;z-index:35;color:var(--cy);font-size:11px;letter-spacing:2px;pointer-events:none;opacity:0;transition:opacity .2s;text-shadow:0 0 8px var(--cy2);}
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+}}
+</script>
+<script src="/static/identity.js"></script>
+<script src="/static/vision.js"></script>
+<script src="/static/face.js"></script>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<canvas id="hand"></canvas>
+<video id="cam" autoplay playsinline muted></video>
+<div id="grabhint">◆ GRAB</div>
+
+<div id="hdr"><div class="brand ident-name">RENCORA</div><div class="sub">3D HOLOGRAPHIC CONTROL</div></div>
+
+<div id="sys" class="panel">
+  <div class="ttl">SYSTEM // STATUS</div>
+  <div class="row"><span>ASSISTANT</span><b id="s-assist">—</b></div>
+  <div class="row"><span>GESTURE</span><b id="s-gest">INIT…</b></div>
+  <div class="row"><span>HANDS</span><b id="s-hands">0</b></div>
+  <div class="row"><span>GRAB</span><b id="s-grab">—</b></div>
+  <div class="row"><span>UPLINK</span><b id="s-link">—</b></div>
+</div>
+
+<div id="chat" class="panel"><div class="ttl">COMMS // FEED</div><div id="feed"></div></div>
+
+<div id="dock">
+  <div id="shapes">
+    <div class="chip on" data-shape="0">REACTOR</div>
+    <div class="chip" data-shape="1">CORE</div>
+    <div class="chip" data-shape="2">HELM</div>
+    <div class="chip" data-shape="3">DNA</div>
+    <div class="chip" data-shape="4">GRID</div>
+    <div class="chip" data-shape="5">ARC</div>
+    <div class="chip" data-shape="6">TURBINE</div>
+    <div class="chip" data-shape="7">SATELLIT</div>
+    <div class="chip" data-shape="8">MOLEKÜL</div>
+    <div class="chip" id="mprev" title="vorheriges Modell">◀</div>
+    <div class="chip" id="mname" title="geladenes Modell">MODELLE</div>
+    <div class="chip" id="mnext" title="nächstes Modell">▶</div>
+  </div>
+  <div id="inbar">
+    <input id="inp" placeholder="Befehl an Rencora…" autocomplete="off">
+    <div class="btn" id="voiceBtn" data-act="voice">VOICE</div>
+    <div class="btn" id="wakeBtn" data-act="wake">WAKE</div>
+  </div>
+</div>
+
+<div id="hint">
+  <b>PINCH</b> (Daumen+Zeige) = greifen · Hand bewegen = <b>drehen/schieben</b><br>
+  <b>2 Hände</b> pinchen = <b>skalieren</b> · loslassen = Schub (dreht weiter)<br>
+  Ohne Kamera: <b>Maus ziehen</b> = drehen · <b>Rad</b> = zoom
+</div>
+
+<div id="boot"><div class="b1 ident-name">RENCORA</div><div class="b2" id="bootTxt">INITIALIZING 3D CORE…</div></div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+/* Rencora 3D — hand-driven holographic object manipulation (Tony-Stark style).
+   Backend contract identical to app.html: token in sessionStorage, /api/command,
+   /ws. Upstream engine Mark-LI by FatihMakes (CC BY-NC 4.0) — see NOTICE.md. */
+
+const CY=0x38e6ff, CY2=0x0a9dff;
+// Low-end mode: no bloom, DPR=1, CPU hand tracking, throttled. ?lite=1 / localStorage / auto.
+let LITE = new URLSearchParams(location.search).has('lite') || localStorage.getItem('rencora_lite')==='1';
+const glc=document.getElementById('gl');
+const renderer=new THREE.WebGLRenderer({canvas:glc,antialias:!LITE,alpha:true,powerPreference:'high-performance'});
+// auto low-end: if the GPU is a software renderer (no real GPU), force lite
+try{ const gl=renderer.getContext(); const dbg=gl.getExtension('WEBGL_debug_renderer_info');
+  const rn=dbg?String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)):'';
+  if(/swiftshader|llvmpipe|software|basic render|microsoft basic/i.test(rn)) LITE=true;
+}catch{}
+renderer.setPixelRatio(LITE?1:Math.min(devicePixelRatio,2));
+renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.15;
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+const scene=new THREE.Scene();
+// image-based lighting -> realistic reflections/shading on the .glb models
+if(!LITE){ try{ const pmrem=new THREE.PMREMGenerator(renderer);
+  scene.environment=pmrem.fromScene(new RoomEnvironment(),0.04).texture; }catch(e){ console.warn(e); } }
+const camera=new THREE.PerspectiveCamera(50,1,0.1,100); camera.position.set(0,0,7);
+scene.add(new THREE.AmbientLight(0x224466,1.2));
+const key=new THREE.PointLight(0x66ccff,1.2,50); key.position.set(4,5,6); scene.add(key);
+
+// object holder (what the hand grabs)
+const holder=new THREE.Group(); scene.add(holder);
+let angVel={x:0,y:0};   // release inertia
+let grabbing=false, handsActive=false;   // hand-state (declared early: used in animate loop)
+
+// ---- procedural holographic wireframe models ----
+function wire(geo,color=CY){ const m=new THREE.LineSegments(new THREE.WireframeGeometry(geo),
+  new THREE.LineBasicMaterial({color,transparent:true,opacity:.9})); return m; }
+function pts(geo,color=CY2,size=0.045){ return new THREE.Points(geo,
+  new THREE.PointsMaterial({color,size,transparent:true,opacity:.9})); }
+
+function buildReactor(){ const g=new THREE.Group();
+  g.add(wire(new THREE.TorusGeometry(1.7,0.12,8,48),CY));
+  g.add(wire(new THREE.TorusGeometry(1.3,0.05,6,40),CY2));
+  const core=wire(new THREE.IcosahedronGeometry(0.7,1),0x9fe8ff); g.add(core);
+  const halo=new THREE.Mesh(new THREE.SphereGeometry(0.5,24,24),
+    new THREE.MeshBasicMaterial({color:0xbff4ff,transparent:true,opacity:.35})); g.add(halo);
+  for(let i=0;i<3;i++){ const r=wire(new THREE.TorusGeometry(2.0+i*0.18,0.02,4,64),CY); r.rotation.x=Math.PI/2; r.userData.spin=0.2+i*0.1; g.add(r);}
+  return g; }
+function buildCore(){ const g=new THREE.Group();
+  g.add(wire(new THREE.IcosahedronGeometry(1.6,1),CY));
+  g.add(wire(new THREE.DodecahedronGeometry(1.05),CY2));
+  g.add(pts(new THREE.IcosahedronGeometry(2.0,2),0x9fe8ff,0.04)); return g; }
+function buildHelm(){ const g=new THREE.Group();
+  const head=wire(new THREE.SphereGeometry(1.5,16,12),CY); head.scale.set(0.9,1.1,1.05); g.add(head);
+  const face=wire(new THREE.BoxGeometry(1.6,1.0,0.4),CY2); face.position.set(0,-0.2,1.15); g.add(face);
+  const eyeG=new THREE.PlaneGeometry(0.5,0.14);
+  for(const sx of [-0.42,0.42]){ const e=new THREE.Mesh(eyeG,new THREE.MeshBasicMaterial({color:0xdffbff,transparent:true,opacity:.9}));
+    e.position.set(sx,0.05,1.36); g.add(e);} return g; }
+function buildDNA(){ const g=new THREE.Group(); const N=32;
+  for(let i=0;i<N;i++){ const a=i/N*Math.PI*4, y=(i/N-0.5)*4;
+    for(const s of [1,-1]){ const b=new THREE.Mesh(new THREE.SphereGeometry(0.11,10,10),
+      new THREE.MeshBasicMaterial({color:s>0?CY:CY2})); b.position.set(Math.cos(a)*s*0.9,y,Math.sin(a)*s*0.9); g.add(b);}
+    if(i%2===0){ const p1=new THREE.Vector3(Math.cos(a)*0.9,y,Math.sin(a)*0.9),p2=new THREE.Vector3(-Math.cos(a)*0.9,y,-Math.sin(a)*0.9);
+      const l=new THREE.Line(new THREE.BufferGeometry().setFromPoints([p1,p2]),new THREE.LineBasicMaterial({color:0x7fe0ff,transparent:true,opacity:.5})); g.add(l);} }
+  return g; }
+function buildGrid(){ const g=new THREE.Group();
+  for(let i=0;i<6;i++){ const c=wire(new THREE.BoxGeometry(3-i*0.4,3-i*0.4,3-i*0.4), i%2?CY2:CY); c.userData.spin=(i%2?1:-1)*(0.1+i*0.05); g.add(c);} return g; }
+
+// Original high-poly Iron-Man-INSPIRED arc reactor (own work, not Marvel IP)
+function buildArc(){ const g=new THREE.Group();
+  const emis=(c,i)=>new THREE.MeshStandardMaterial({color:c,emissive:c,emissiveIntensity:i,metalness:0.6,roughness:0.3});
+  g.add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.55,4), emis(0x9fe8ff,1.6)));        // high-poly core
+  g.add(new THREE.Mesh(new THREE.SphereGeometry(0.78,32,32), new THREE.MeshBasicMaterial({color:0xbff4ff,transparent:true,opacity:0.22})));
+  for(let i=0;i<4;i++) g.add(new THREE.Mesh(new THREE.TorusGeometry(1.0+i*0.28,Math.max(0.02,0.06-i*0.01),16,128), emis(i%2?0x0a9dff:0x38e6ff,0.9)));
+  const cage=new THREE.Mesh(new THREE.TorusGeometry(1.9,0.05,12,160), emis(0x38e6ff,0.7)); cage.rotation.x=Math.PI/2; g.add(cage);
+  for(let i=0;i<12;i++){ const a=i/12*Math.PI*2; const s=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.09,0.09), emis(0x38e6ff,0.8));
+    s.position.set(Math.cos(a)*1.35,Math.sin(a)*1.35,0); s.rotation.z=a; g.add(s); }
+  for(let i=0;i<24;i++){ const a=i/24*Math.PI*2; const t=new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,0.3,8), emis(0x9fe8ff,1.0));
+    t.position.set(Math.cos(a)*1.7,Math.sin(a)*1.7,0); t.rotation.z=a+Math.PI/2; g.add(t); }
+  return g; }
+// --- more original high-poly models ---
+function buildTurbine(){ const g=new THREE.Group();
+  const met=(c,i)=>new THREE.MeshStandardMaterial({color:c,emissive:c,emissiveIntensity:i,metalness:0.7,roughness:0.3});
+  g.add(new THREE.Mesh(new THREE.CylinderGeometry(1.2,1.2,2.6,48,1,true), met(0x0a9dff,0.25)));   // housing
+  for(let i=0;i<3;i++) g.add(new THREE.Mesh(new THREE.TorusGeometry(1.22,0.06,12,64), met(0x38e6ff,0.6)).translateY(-1.0+i*1.0));
+  const hub=new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.22,2.4,24), met(0x9fe8ff,0.5)); g.add(hub);
+  for(let r=0;r<3;r++){ const y=-0.7+r*0.7; for(let i=0;i<18;i++){ const a=i/18*Math.PI*2;   // fan blades
+    const b=new THREE.Mesh(new THREE.BoxGeometry(0.9,0.5,0.05), met(0x38e6ff,0.35));
+    b.position.set(Math.cos(a)*0.7,y,Math.sin(a)*0.7); b.rotation.set(0,-a,0.5); g.add(b);} }
+  g.rotation.x=Math.PI/2; return g; }
+function buildSatellite(){ const g=new THREE.Group();
+  const met=(c,i)=>new THREE.MeshStandardMaterial({color:c,emissive:c,emissiveIntensity:i,metalness:0.6,roughness:0.4});
+  g.add(new THREE.Mesh(new THREE.BoxGeometry(0.9,0.9,1.3), met(0x0a9dff,0.3)));                  // body
+  for(const s of [-1,1]){ const panel=new THREE.Mesh(new THREE.BoxGeometry(2.4,0.03,1.0), met(0x38e6ff,0.5));
+    panel.position.x=s*1.9; g.add(panel);
+    for(let i=0;i<6;i++){ const l=new THREE.Mesh(new THREE.BoxGeometry(0.02,0.05,1.0), met(0x9fe8ff,0.6)); l.position.set(s*(1.0+i*0.36),0.03,0); g.add(l);} }
+  const dish=new THREE.Mesh(new THREE.SphereGeometry(0.55,24,12,0,Math.PI*2,0,Math.PI/2.2), met(0xeafcff,0.4));
+  dish.rotation.x=Math.PI; dish.position.set(0,0.7,0.4); g.add(dish);
+  const ant=new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,1.0,8), met(0x9fe8ff,0.7));
+  ant.position.set(0,-0.7,0); g.add(ant);
+  return g; }
+function buildMolecule(){ const g=new THREE.Group(); const N=9;
+  const atoms=[]; for(let i=0;i<N;i++){ const u=[Math.random()*2-1,Math.random()*2-1,Math.random()*2-1];
+    const l=Math.hypot(...u)||1; const p=new THREE.Vector3(u[0]/l,u[1]/l,u[2]/l).multiplyScalar(1.4);
+    const c=i===0?0x9fe8ff:(i%2?0x38e6ff:0x0a9dff);
+    const a=new THREE.Mesh(new THREE.SphereGeometry(i===0?0.34:0.24,24,24),
+      new THREE.MeshStandardMaterial({color:c,emissive:c,emissiveIntensity:0.6,metalness:0.4,roughness:0.3}));
+    a.position.copy(p); g.add(a); atoms.push(p); }
+  for(let i=1;i<N;i++){ const p1=atoms[0],p2=atoms[i]; const dir=new THREE.Vector3().subVectors(p2,p1);
+    const bond=new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,dir.length(),8),
+      new THREE.MeshStandardMaterial({color:0x7fe0ff,emissive:0x7fe0ff,emissiveIntensity:0.4}));
+    bond.position.copy(p1).add(dir.clone().multiplyScalar(0.5)); bond.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir.clone().normalize()); g.add(bond); }
+  return g; }
+const BUILDERS=[buildReactor,buildCore,buildHelm,buildDNA,buildGrid,buildArc,buildTurbine,buildSatellite,buildMolecule];
+let current=null, shapeIdx=0, modelIdx=-1, MODELS=[];
+function clearHolder(){ if(current){ holder.remove(current);
+    current.traverse&&current.traverse(o=>{ if(o.geometry)o.geometry.dispose&&o.geometry.dispose(); }); }
+  holder.rotation.set(0,0,0); holder.scale.setScalar(1); angVel={x:0,y:0}; }
+function setShape(i){ shapeIdx=i; modelIdx=-1; clearHolder();
+  current=BUILDERS[i](); holder.add(current);
+  document.querySelectorAll('.chip[data-shape]').forEach(c=>c.classList.toggle('on',+c.dataset.shape===i));
+  document.getElementById('mname').classList.remove('on');
+}
+setShape(0);
+
+// ---- drop-in .glb / .gltf model loader ----
+const gltf=new GLTFLoader();
+const extraLight=new THREE.HemisphereLight(0xbfe6ff,0x101828,1.1); scene.add(extraLight);
+function fitToView(obj){ const box=new THREE.Box3().setFromObject(obj); const size=new THREE.Vector3(); box.getSize(size);
+  const center=new THREE.Vector3(); box.getCenter(center); obj.position.sub(center);   // center at origin
+  const maxd=Math.max(size.x,size.y,size.z)||1; obj.scale.multiplyScalar(3.4/maxd); }   // fit ~3.4 units
+function showModel(i){ if(!MODELS.length)return; modelIdx=(i+MODELS.length)%MODELS.length;
+  const m=MODELS[modelIdx]; const nameEl=document.getElementById('mname');
+  nameEl.textContent='… '+m.name; nameEl.classList.add('on');
+  document.querySelectorAll('.chip[data-shape]').forEach(c=>c.classList.remove('on'));
+  gltf.load(m.url, g=>{ clearHolder(); const root=g.scene||g.scenes[0]; fitToView(root); current=root; holder.add(root);
+      nameEl.textContent=`${m.name} (${modelIdx+1}/${MODELS.length})`; shapeIdx=-1; sysm('Modell geladen: '+m.name); },
+    undefined, err=>{ nameEl.textContent='FEHLER'; sysm('Modell konnte nicht laden: '+m.name); console.warn(err); }); }
+async function loadModelList(){ try{ const r=await fetch('/api/models'); MODELS=await r.json(); }catch{ MODELS=[]; }
+  const nm=document.getElementById('mname');
+  if(MODELS.length){ nm.textContent=`MODELLE (${MODELS.length})`; sysm(MODELS.length+' Modell(e) im Ordner gefunden.'); }
+  else nm.textContent='KEINE MODELLE'; }
+document.getElementById('mnext').addEventListener('click',()=>showModel(modelIdx+1));
+document.getElementById('mprev').addEventListener('click',()=>showModel(modelIdx-1));
+document.getElementById('mname').addEventListener('click',()=>{ if(MODELS.length)showModel(modelIdx<0?0:modelIdx); });
+loadModelList();
+
+// ---- 3D-Werkstatt: Maße (Bounding-Box) + STL/GLB per Drag&Drop ----
+const dimsEl=document.createElement('div'); dimsEl.id='dims';
+dimsEl.style.cssText='position:fixed;left:16px;bottom:70px;z-index:25;font:600 12px/1.6 ui-monospace,monospace;'
+  +'color:var(--cy,#38e6ff);text-shadow:0 0 8px var(--cy2,#0a9dff);background:rgba(4,10,20,.55);'
+  +'border:1px solid var(--cy,#38e6ff);border-radius:8px;padding:8px 12px;display:none;letter-spacing:1px';
+document.body.appendChild(dimsEl);
+let dimUnit='Einh.';
+function showDims(size){ const f=v=>Math.round(v*10)/10; dimsEl.style.display='block';
+  dimsEl.innerHTML='◈ MASSE ('+dimUnit+')<br>B '+f(size.x)+' · H '+f(size.y)+' · T '+f(size.z); }
+// wrap fitToView so the real (pre-scale) dimensions show whenever a model is framed
+const _fitBase=fitToView;
+fitToView=function(obj){ try{ const box=new THREE.Box3().setFromObject(obj); const s=new THREE.Vector3();
+    box.getSize(s); showDims(s); }catch(e){} return _fitBase(obj); };
+
+const stl=new STLLoader();
+function loadSTLBuffer(buf,name){
+  try{
+    const geo=stl.parse(buf); geo.computeVertexNormals();
+    const mat=new THREE.MeshStandardMaterial({color:0x9fd0ff,metalness:0.25,roughness:0.4,
+      emissive:0x0a2740,emissiveIntensity:0.5});
+    const mesh=new THREE.Mesh(geo,mat);
+    dimUnit='mm'; clearHolder(); fitToView(mesh); current=mesh; holder.add(mesh);
+    shapeIdx=-1; modelIdx=-1;
+    const nm=document.getElementById('mname'); if(nm){ nm.textContent=name||'STL'; nm.classList.add('on'); }
+    document.querySelectorAll('.chip[data-shape]').forEach(c=>c.classList.remove('on'));
+    sysm('STL geladen: '+(name||'Modell'));
+  }catch(e){ sysm('STL konnte nicht geladen werden.'); console.warn(e); }
+}
+function handleDrop(e){ e.preventDefault();
+  const f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0]; if(!f) return;
+  const n=f.name.toLowerCase();
+  if(n.endsWith('.stl')){ const r=new FileReader(); r.onload=()=>loadSTLBuffer(r.result,f.name); r.readAsArrayBuffer(f); }
+  else if(n.endsWith('.glb')||n.endsWith('.gltf')){ const url=URL.createObjectURL(f);
+    gltf.load(url,g=>{ clearHolder(); const root=g.scene||g.scenes[0]; dimUnit='Einh.'; fitToView(root);
+      current=root; holder.add(root); shapeIdx=-1; sysm('Modell geladen: '+f.name); URL.revokeObjectURL(url); },
+      undefined, err=>{ sysm('Modell konnte nicht laden.'); console.warn(err); }); }
+  else sysm('Bitte eine .stl-, .glb- oder .gltf-Datei ablegen.');
+}
+addEventListener('dragover',e=>{ e.preventDefault(); });
+addEventListener('drop',handleDrop);
+
+// ---- post-processing bloom (the holographic glow) ----
+let composer,bloom;
+function setupPost(){ if(LITE) return;               // bloom is the biggest GPU cost — skip on low-end
+  composer=new EffectComposer(renderer); composer.addPass(new RenderPass(scene,camera));
+  bloom=new UnrealBloomPass(new THREE.Vector2(1,1),0.6,0.5,0.12); composer.addPass(bloom); }
+setupPost();
+
+// ---- mouse fallback controls (orbit) — used when no hand ----
+const controls=new OrbitControls(camera,renderer.domElement);
+controls.enableDamping=true; controls.enablePan=false; controls.minDistance=3.5; controls.maxDistance=16;
+controls.autoRotate=false;
+
+function resize(){ const w=innerWidth,h=innerHeight; renderer.setSize(w,h);
+  camera.aspect=w/h; camera.updateProjectionMatrix(); if(composer)composer.setSize(w,h);
+  const dpr=LITE?1:Math.min(devicePixelRatio,2);
+  const hc=document.getElementById('hand'); hc.width=w*dpr; hc.height=h*dpr;
+  hc.style.width=w+'px'; hc.style.height=h+'px'; }
+addEventListener('resize',resize); resize();
+
+// ---- render loop ----
+let idleT=0;
+function animate(){ requestAnimationFrame(animate); idleT+=0.016;
+  // spin sub-parts
+  current&&current.children.forEach(c=>{ if(c.userData.spin) c.rotation.z+=0.005*c.userData.spin; });
+  if(!grabbing){ // inertia + gentle idle
+    holder.rotation.y+=angVel.y + 0.0015; holder.rotation.x+=angVel.x;
+    angVel.x*=0.94; angVel.y*=0.94;
+    controls.enabled=!handsActive; controls.update();
+  } else controls.enabled=false;
+  if(composer) composer.render(); else renderer.render(scene,camera);
+}
+animate();
+
+// ============================ Backend ============================
+const feed=document.getElementById('feed');
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function add(k,t,l){const d=document.createElement('div');d.className='msg '+k;
+  d.innerHTML=(l?`<div class="lbl">${l}</div>`:'')+esc(t);feed.appendChild(d);feed.scrollTop=feed.scrollHeight;
+  while(feed.children.length>50)feed.removeChild(feed.firstChild);}
+const jarvis=t=>add('m-j',t,'RENCORA'),me=t=>add('m-u',t,'YOU'),sysm=t=>add('m-s',t,'');
+function setAssist(on){const e=document.getElementById('s-assist');e.textContent=on?'ACTIVE':'SLEEPING';e.style.color=on?'#7dffa0':'#8fd8ff';}
+
+const TOKEN=sessionStorage.getItem('jarvis_token')||''; let DEMO=!TOKEN, ws=null;
+function connect(){ if(DEMO){document.getElementById('s-link').textContent='DEMO';
+    sysm('Kein Token — Demo. Über Mark-LI (Remote Control) verbinden für echten Betrieb.');
+    jarvis('Demo-Modus: 3D-Steuerung läuft, Befehle werden lokal gespiegelt.');return;}
+  const p=location.protocol==='https:'?'wss':'ws';
+  ws=new WebSocket(`${p}://${location.host}/ws?token=${encodeURIComponent(TOKEN)}`);
+  ws.onopen=()=>{document.getElementById('s-link').textContent='LIVE';setAssist(true);sysm('Uplink aktiv.');};
+  ws.onclose=()=>{document.getElementById('s-link').textContent='LOST';};
+  ws.onerror=()=>{document.getElementById('s-link').textContent='ERR';};
+  ws.onmessage=e=>{let m;try{m=JSON.parse(e.data);}catch{return;}
+    if(m.type==='log')add(m.speaker==='jarvis'?'m-j':'m-u',m.text,m.speaker==='jarvis'?'RENCORA':'YOU');
+    else if(m.type==='status')setAssist(m.state==='active'); else if(m.type==='sys')sysm(m.text);
+    else if(m.type==='wake')sysm('Wake erkannt…');};}
+function sendCommand(t){t=t.trim();if(!t)return;me(t);
+  if(DEMO){setTimeout(()=>jarvis('(Demo) Verstanden: „'+t+'"'),400);return;}
+  fetch('/api/command',{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${TOKEN}`},body:JSON.stringify({text:t})}).catch(()=>sysm('Command fehlgeschlagen.'));}
+function sendWake(){ if(DEMO){setAssist(true);jarvis('(Demo) Ich bin wach.');return;}
+  fetch('/api/wake',{method:'POST',headers:{'Authorization':`Bearer ${TOKEN}`}}).catch(()=>{});}
+
+const inp=document.getElementById('inp');
+inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();sendCommand(inp.value);inp.value='';}});
+document.querySelectorAll('.chip[data-shape]').forEach(c=>c.addEventListener('click',()=>setShape(+c.dataset.shape)));
+document.getElementById('wakeBtn').addEventListener('click',sendWake);
+document.getElementById('voiceBtn').addEventListener('click',e=>toggleVoice(e.currentTarget));
+
+// ---- Voice (PCM16 -> /ws/phone-audio) ----
+let voiceOn=false,vWs=null,aCtx=null,micStream=null,node=null;
+async function toggleVoice(el){ if(voiceOn){stopVoice();el.classList.remove('rec');el.textContent='VOICE';return;}
+  if(DEMO){jarvis('(Demo) Sprachmodus braucht den Live-Uplink.');return;}
+  try{ micStream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true}});
+    aCtx=new (window.AudioContext||window.webkitAudioContext)({sampleRate:16000});
+    const src=aCtx.createMediaStreamSource(micStream); node=aCtx.createScriptProcessor(2048,1,1);
+    const p=location.protocol==='https:'?'wss':'ws'; vWs=new WebSocket(`${p}://${location.host}/ws/phone-audio?token=${encodeURIComponent(TOKEN)}`); vWs.binaryType='arraybuffer';
+    node.onaudioprocess=ev=>{if(!vWs||vWs.readyState!==1)return;const f=ev.inputBuffer.getChannelData(0);const b=new Int16Array(f.length);
+      for(let i=0;i<f.length;i++){let s=Math.max(-1,Math.min(1,f[i]));b[i]=s<0?s*0x8000:s*0x7fff;}vWs.send(b.buffer);};
+    src.connect(node);node.connect(aCtx.destination); voiceOn=true;el.classList.add('rec');el.textContent='● REC';sysm('Sprachkanal offen.');
+  }catch(err){sysm('Mikrofon nicht verfügbar: '+err.message);} }
+function stopVoice(){voiceOn=false;try{node&&node.disconnect();}catch{}try{micStream&&micStream.getTracks().forEach(t=>t.stop());}catch{}try{aCtx&&aCtx.close();}catch{}try{vWs&&vWs.close();}catch{}vWs=null;}
+
+// ============================ Hand control (3D) ============================
+const cam=document.getElementById('cam'), hc=document.getElementById('hand'), hx=hc.getContext('2d');
+let landmarker=null;   // handsActive & grabbing are declared earlier (used by animate)
+let gPrev=null, twoPrevDist=null;
+const grabHint=document.getElementById('grabhint');
+const CONN=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+function d2(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}
+
+function OneEuro(mc,beta,dc){ let xp=null,dxp=0,tp=null; const al=(c,dt)=>{const r=2*Math.PI*c*dt;return r/(r+1);};
+  return (x,t)=>{ if(xp===null){xp=x;tp=t;return x;} const dt=Math.max(1e-3,(t-tp)/1000);
+    const dx=(x-xp)/dt; const ad=al(dc,dt); const dxh=ad*dx+(1-ad)*dxp;
+    const c=mc+beta*Math.abs(dxh); const a=al(c,dt); const xh=a*x+(1-a)*xp; xp=xh;dxp=dxh;tp=t; return xh; }; }
+const gfx=OneEuro(1.4,0.03,1), gfy=OneEuro(1.4,0.03,1);   // smooth one-hand grab
+let pinchState=false;
+function pinchRatio(lm){ const sc=d2(lm[0],lm[9])||0.1; return d2(lm[4],lm[8])/sc; }
+function primaryPinch(lm){ const r=pinchRatio(lm); if(pinchState){if(r>0.70)pinchState=false;}else{if(r<0.48)pinchState=true;} return pinchState; }
+
+async function makeLM(V,files,delegate){ return V.HandLandmarker.createFromOptions(files,
+  {baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',delegate},numHands:2,runningMode:'VIDEO'}); }
+async function initHands(){ const gs=document.getElementById('s-gest');
+  const w=LITE?480:640,h=LITE?360:480;
+  try{ const s=await navigator.mediaDevices.getUserMedia({video:{width:w,height:h,facingMode:'user'}}); cam.srcObject=s; await cam.play(); }
+  catch(e){ gs.textContent='NO CAM';gs.style.color='#ffb05a'; sysm('Keine Webcam — Maus: ziehen=drehen, Rad=zoom.'); return; }
+  let V,files; try{ V=await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs');
+    files=await V.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'); }
+  catch(e){ gs.textContent='LOAD FAIL';gs.style.color='#ffb05a'; sysm('Handmodell konnte nicht laden — Maus-Steuerung aktiv.'); return; }
+  try{ landmarker=await makeLM(V,files,'GPU'); gs.textContent='TRACKING';gs.style.color='#7dffa0'; }
+  catch(e){ try{ LITE=true; landmarker=await makeLM(V,files,'CPU'); gs.textContent='TRACKING (CPU)';gs.style.color='#7dffa0'; }
+    catch(e2){ gs.textContent='FAIL';gs.style.color='#ffb05a'; sysm('Handtracking nicht verfügbar — Maus-Steuerung aktiv.'); return; } }
+  handsActive=true; sysm('Handtracking aktiv — greif das Hologramm (Pinch).'); requestAnimationFrame(handLoop);
+}
+
+let lastDet=0, lastHands=[];
+function handLoop(now){ if(!handsActive)return;
+  const DET_MS=LITE?60:33;
+  if(now-lastDet>=DET_MS){ lastDet=now; let res=null; try{res=landmarker.detectForVideo(cam,now);}catch{}
+    lastHands=res&&res.landmarks?res.landmarks:[]; }
+  const hands=lastHands;
+  const DPR=LITE?1:Math.min(devicePixelRatio,2); hx.setTransform(DPR,0,0,DPR,0,0); hx.clearRect(0,0,innerWidth,innerHeight);
+  document.getElementById('s-hands').textContent=hands.length;
+  hx.globalCompositeOperation='lighter';
+  const X=p=>(1-p.x)*innerWidth, Y=p=>p.y*innerHeight;
+  hands.forEach(lm=>{ hx.strokeStyle='#38e6ff';hx.lineWidth=2;hx.shadowColor='#0a9dff';hx.shadowBlur=LITE?0:9;
+    CONN.forEach(([a,b])=>{hx.beginPath();hx.moveTo(X(lm[a]),Y(lm[a]));hx.lineTo(X(lm[b]),Y(lm[b]));hx.stroke();});
+    if(!LITE) lm.forEach(p=>{hx.fillStyle='#eaffff';hx.shadowBlur=6;hx.beginPath();hx.arc(X(p),Y(p),3,0,7);hx.fill();}); });
+
+  if(hands.length>=2 && pinchRatio(hands[0])<0.6 && pinchRatio(hands[1])<0.6){
+    const dist=d2(hands[0][8],hands[1][8]);
+    if(twoPrevDist!==null){ const f=1+(dist-twoPrevDist)*2.0; holder.scale.multiplyScalar(THREE.MathUtils.clamp(f,0.92,1.08));
+      holder.scale.setScalar(THREE.MathUtils.clamp(holder.scale.x,0.4,3.2)); }
+    twoPrevDist=dist; grabbing=true; setGrab('SCALE'); gPrev=null; pinchState=true;
+  } else if(hands.length>=1 && primaryPinch(hands[0])){
+    const lm=hands[0]; const cx=gfx(1-lm[8].x,now), cy=gfy(lm[8].y,now);   // SMOOTHED
+    if(gPrev){ const dx=cx-gPrev.x, dy=cy-gPrev.y;
+      holder.rotation.y+=dx*5.0; holder.rotation.x+=dy*5.0; angVel={x:dy*2.5,y:dx*2.5}; }
+    gPrev={x:cx,y:cy}; twoPrevDist=null; grabbing=true; setGrab('HOLD');
+    grabHint.style.left=X(lm[8])+12+'px'; grabHint.style.top=Y(lm[8])-8+'px'; grabHint.style.opacity=1;
+  } else { if(grabbing) setGrab('—'); grabbing=false; gPrev=null; twoPrevDist=null; grabHint.style.opacity=0; }
+  requestAnimationFrame(handLoop);
+}
+function setGrab(s){ const e=document.getElementById('s-grab'); e.textContent=s; e.style.color=s==='—'?'#8fd8ff':'#7dffa0'; }
+
+// ---- boot ----
+const bootTxt=document.getElementById('bootTxt');
+const seq=['LOADING GEOMETRY…','CALIBRATING OPTICS…','ARC CORE ONLINE','READY'];
+let si=0; const bt=setInterval(()=>{bootTxt.textContent=seq[si++]||'';
+  if(si>=seq.length){clearInterval(bt);const b=document.getElementById('boot');b.style.opacity=0;setTimeout(()=>b.remove(),800);}},600);
+
+connect(); setAssist(!DEMO); setTimeout(initHands,1200);
+jarvis('3D-Core bereit. Greif ein Hologramm oder tippe einen Befehl.');
+</script>
+</body>
+</html>

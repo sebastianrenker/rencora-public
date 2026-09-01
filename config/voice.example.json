@@ -1,0 +1,6 @@
+{
+  "_hinweis": "continuous=false → erst nach Wakeword 'jarvis'/'rencora' zuhoeren. model_lang: Vosk-Modellsprache (z.B. 'de' oder 'en-us').",
+  "wake_words": ["jarvis", "rencora"],
+  "continuous": false,
+  "model_lang": "en-us"
+}

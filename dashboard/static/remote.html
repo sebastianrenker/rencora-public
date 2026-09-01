@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>RENCORA REMOTE</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#04070e">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Rencora">
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').catch(()=>{});}</script>
+<style>
+  :root{ --pp:#b06bff; --cy:#38e6ff; --cy2:#0a9dff; --dim:#5a6a80; --bg:#04070e; --ok:#5ef2a0; --ink:#dbe9ff; }
+  *{box-sizing:border-box;} html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);
+    font-family:'Consolas','SF Mono','Courier New',monospace;-webkit-tap-highlight-color:transparent;}
+  .wrap{max-width:520px;margin:0 auto;padding:18px 16px 30px;display:flex;flex-direction:column;gap:14px;min-height:100vh;}
+  header{text-align:center;}
+  header .b{font-size:22px;letter-spacing:10px;color:#fff;text-shadow:0 0 14px var(--cy2);}
+  header .s{font-size:10px;letter-spacing:4px;color:var(--dim);margin-top:2px;}
+  #status{display:flex;justify-content:center;gap:10px;font-size:11px;letter-spacing:2px;}
+  .pill{border:1px solid var(--cy2);color:var(--cy);border-radius:20px;padding:3px 11px;}
+  .pill.on{border-color:var(--ok);color:var(--ok);}
+  #feed{background:rgba(8,20,36,.4);border:1px solid rgba(56,230,255,.2);border-radius:12px;padding:10px;
+    min-height:120px;max-height:34vh;overflow-y:auto;display:flex;flex-direction:column;gap:6px;}
+  .msg{font-size:13px;line-height:1.4;padding:6px 9px;border-radius:8px;max-width:90%;}
+  .m-j{align-self:flex-start;background:rgba(56,230,255,.1);border-left:2px solid var(--cy);}
+  .m-u{align-self:flex-end;background:rgba(176,107,255,.16);border-right:2px solid var(--pp);text-align:right;}
+  .m-s{align-self:center;font-size:11px;color:var(--dim);}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+  .k{background:rgba(10,20,38,.7);border:1px solid rgba(56,230,255,.25);border-radius:12px;color:var(--ink);
+    font-family:inherit;font-size:13px;padding:14px 6px;display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;}
+  .k:active{background:var(--cy2);color:#04101c;} .k .i{font-size:24px;}
+  .sec{font-size:10px;letter-spacing:3px;color:var(--dim);margin:4px 2px -4px;}
+  #inbar{display:flex;gap:8px;} #inp{flex:1;background:rgba(8,20,36,.6);border:1px solid rgba(56,230,255,.3);border-radius:10px;
+    color:#fff;font-family:inherit;font-size:16px;padding:12px 14px;outline:none;}
+  .big{border:none;border-radius:12px;font-family:inherit;font-size:15px;letter-spacing:2px;padding:14px;cursor:pointer;font-weight:700;color:#04101c;}
+  #send{background:var(--cy2);} #mic{background:linear-gradient(90deg,var(--pp),var(--cy2));color:#fff;}
+  #mic.rec{background:#ff2f4f;color:#fff;}
+</style>
+<script src="/static/identity.js"></script>
+<script src="/static/boot.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <header><div class="b ident-name">RENCORA</div><div class="s">REMOTE · STEUERUNG</div></header>
+  <div id="status"><span class="pill" id="assist">STANDBY</span><span class="pill" id="link">—</span></div>
+  <div id="feed"></div>
+
+  <div class="sec">MEDIEN</div>
+  <div class="grid">
+    <div class="k" data-cmd="spiele entspannte Musik im Hintergrund"><span class="i">🎵</span>Musik</div>
+    <div class="k" data-cmd="spiele ein Video"><span class="i">🎬</span>Video/Film</div>
+    <div class="k" data-cmd="was läuft gerade"><span class="i">ℹ️</span>Was läuft</div>
+    <div class="k" data-cmd="nächster Titel"><span class="i">⏭️</span>Weiter</div>
+    <div class="k" data-cmd="Musik stoppen"><span class="i">⏹️</span>Stopp</div>
+    <div class="k" data-cmd="mach lauter"><span class="i">🔊</span>Lauter</div>
+    <div class="k" data-cmd="mach leiser"><span class="i">🔉</span>Leiser</div>
+    <div class="k" data-cmd="öffne den Browser"><span class="i">🌐</span>Browser</div>
+    <div class="k" data-cmd="gib mir mein Update"><span class="i">📰</span>Update</div>
+  </div>
+
+  <div class="sec">EINGABE</div>
+  <div id="inbar"><input id="inp" placeholder="Befehl an Rencora…" autocomplete="off"><button class="big" id="send">➤</button></div>
+  <button class="big" id="mic">🎙️ SPRECHEN (halten)</button>
+  <button class="big" id="wake" style="background:rgba(56,230,255,.16);color:#eaffff;border:1px solid var(--cy2);">⚡ WECKEN</button>
+  <button class="big" id="listen" style="background:rgba(120,120,255,.12);color:#eaffff;border:1px solid var(--cy2);">👂 NUR WAKEWORD</button>
+  <button class="big" id="wa" style="background:rgba(37,211,102,.16);color:#eaffff;border:1px solid #25d366;">📲 WHATSAPP VORLESEN</button>
+</div>
+
+<script>
+const TOKEN=sessionStorage.getItem('jarvis_token')||'';
+if(!TOKEN) location.replace('/local?to=%2Fremote');
+const feed=document.getElementById('feed');
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function add(k,t,l){const d=document.createElement('div');d.className='msg '+k;d.textContent=t;feed.appendChild(d);
+  while(feed.children.length>30)feed.removeChild(feed.firstChild); feed.scrollTop=feed.scrollHeight;}
+function setLink(t,on){const e=document.getElementById('link');e.textContent=t;e.classList.toggle('on',!!on);}
+function setAssist(m){const a=document.getElementById('assist');a.classList.toggle('on',m!=='sleep');a.textContent=m==='speaking'?'SPRICHT':m==='active'?'AKTIV':'STANDBY';}
+
+const p=location.protocol==='https:'?'wss':'ws';
+let ws=null;
+function connect(){ ws=new WebSocket(`${p}://${location.host}/ws?token=${encodeURIComponent(TOKEN)}`);
+  ws.onopen=()=>setLink('VERBUNDEN',1); ws.onclose=()=>{setLink('GETRENNT');setTimeout(connect,2000);};
+  ws.onmessage=e=>{let m;try{m=JSON.parse(e.data);}catch{return;}
+    if(m.type==='log')add(m.speaker==='jarvis'?'m-j':'m-u',m.text);
+    else if(m.type==='speaking')setAssist(m.value?'speaking':'active');
+    else if(m.type==='status')setAssist(m.state==='active'?'active':'sleep');
+    else if(m.type==='sys')add('m-s',m.text); }; }
+connect();
+
+function cmd(text){ if(!text)return; add('m-u',text);
+  fetch('/api/command',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+TOKEN},body:JSON.stringify({text})}).catch(()=>{}); }
+document.querySelectorAll('.k').forEach(k=>k.addEventListener('click',()=>cmd(k.dataset.cmd)));
+const inp=document.getElementById('inp');
+document.getElementById('send').addEventListener('click',()=>{cmd(inp.value.trim());inp.value='';});
+inp.addEventListener('keydown',e=>{if(e.key==='Enter'){cmd(inp.value.trim());inp.value='';}});
+document.getElementById('wake').addEventListener('click',()=>{fetch('/api/wake',{method:'POST',headers:{'Authorization':'Bearer '+TOKEN}}).catch(()=>{});add('m-s','Wecken gesendet.');});
+let _cont=false;
+document.getElementById('listen').addEventListener('click',function(){
+  _cont=!_cont;
+  fetch('/api/listen-mode',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+TOKEN},body:JSON.stringify({continuous:_cont})}).catch(()=>{});
+  this.textContent=_cont?'🔴 DAUERHAFT ZUHÖREN':'👂 NUR WAKEWORD';
+  this.style.background=_cont?'rgba(255,60,90,.22)':'rgba(120,120,255,.12)';
+  add('m-s',_cont?'Dauerhaftes Zuhören AN.':'Nur Wakeword (jarvis/rencora).');
+});
+let _wa=false;
+document.getElementById('wa').addEventListener('click',function(){
+  _wa=!_wa;
+  fetch('/api/command',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+TOKEN},
+    body:JSON.stringify({text:_wa?'Lies mir ab jetzt neue WhatsApp-Nachrichten vor':'Stoppe das WhatsApp-Vorlesen'})}).catch(()=>{});
+  this.textContent=_wa?'🟢 WHATSAPP: AN (stoppen)':'📲 WHATSAPP VORLESEN';
+  this.style.background=_wa?'rgba(37,211,102,.3)':'rgba(37,211,102,.16)';
+  add('m-s',_wa?'WhatsApp-Vorlesen aktiviert.':'WhatsApp-Vorlesen gestoppt.');
+});
+
+// voice: hold to talk -> stream mic PCM16 to Rencora (Gemini Live)
+let vWs=null,aCtx=null,micStream=null,node=null,rec=false;
+async function startVoice(){ if(rec)return; rec=true; const b=document.getElementById('mic'); b.classList.add('rec'); b.textContent='● HÖRT ZU…';
+  try{ micStream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true}});
+    aCtx=new (window.AudioContext||window.webkitAudioContext)({sampleRate:16000}); const src=aCtx.createMediaStreamSource(micStream); node=aCtx.createScriptProcessor(2048,1,1);
+    vWs=new WebSocket(`${p}://${location.host}/ws/phone-audio?token=${encodeURIComponent(TOKEN)}`); vWs.binaryType='arraybuffer';
+    node.onaudioprocess=ev=>{if(!vWs||vWs.readyState!==1)return;const f=ev.inputBuffer.getChannelData(0);const q=new Int16Array(f.length);
+      for(let i=0;i<f.length;i++){let s=Math.max(-1,Math.min(1,f[i]));q[i]=s<0?s*0x8000:s*0x7fff;}vWs.send(q.buffer);};
+    src.connect(node);node.connect(aCtx.destination);
+  }catch(e){ add('m-s','Mikrofon nicht verfügbar.'); stopVoice(); } }
+function stopVoice(){ rec=false; const b=document.getElementById('mic'); b.classList.remove('rec'); b.textContent='🎙️ SPRECHEN (halten)';
+  try{node&&node.disconnect();}catch{} try{micStream&&micStream.getTracks().forEach(t=>t.stop());}catch{} try{aCtx&&aCtx.close();}catch{} try{vWs&&vWs.close();}catch{} vWs=null; }
+const micBtn=document.getElementById('mic');
+micBtn.addEventListener('mousedown',startVoice); micBtn.addEventListener('touchstart',e=>{e.preventDefault();startVoice();},{passive:false});
+addEventListener('mouseup',stopVoice); addEventListener('touchend',stopVoice);
+</script>
+</body>
+</html>

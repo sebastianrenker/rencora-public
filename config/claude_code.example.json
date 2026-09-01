@@ -1,0 +1,7 @@
+{
+  "_hinweis": "Laesst Rencora via Claude-Code-CLI in deinen Repos coden. repos_dir = Basisordner deiner Projekte.",
+  "repos_dir": "C:/Users/<you>/code",
+  "default_repo": "",
+  "autonomy": "safe",
+  "timeout": 300
+}

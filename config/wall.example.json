@@ -1,0 +1,10 @@
+{
+  "_hinweis": "Ort fuer Wetter/Karte + deine Nachrichtenquellen + Krypto-Ticker.",
+  "city": "Berlin",
+  "lat": 52.52,
+  "lon": 13.405,
+  "news_feeds": [
+    { "url": "https://www.tagesschau.de/index~rss2.xml", "source": "Tagesschau" }
+  ],
+  "coins": ["bitcoin", "ethereum", "solana"]
+}

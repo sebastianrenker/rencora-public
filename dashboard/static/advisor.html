@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RENCORA ADVISOR</title>
+<style>
+  :root{ --cy:#38e6ff; --cy2:#0a9dff; --dim:#5a6a80; --bg:#04070e; --warn:#ffc46b; --ok:#5ef2a0; --ink:#dbe9ff; }
+  *{box-sizing:border-box;} html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+    font-family:'Consolas','SF Mono','Courier New',monospace;overflow:hidden;}
+  #hdr{position:fixed;top:14px;left:0;right:0;text-align:center;z-index:5;pointer-events:none;}
+  #hdr .b{font-size:20px;letter-spacing:11px;color:#eaffff;text-shadow:0 0 14px var(--cy2);}
+  #hdr .s{font-size:10px;letter-spacing:5px;color:var(--dim);margin-top:2px;}
+  #disc{position:fixed;top:0;left:0;right:0;z-index:6;background:rgba(255,196,107,.12);border-bottom:1px solid var(--warn);
+    color:var(--warn);font-size:11px;letter-spacing:.5px;text-align:center;padding:6px 12px;}
+  .wrap{position:fixed;inset:64px 20px 20px;z-index:4;display:grid;grid-template-columns:minmax(0,380px) 1fr;gap:20px;}
+  .panel{background:rgba(8,20,36,.4);border:1px solid rgba(56,230,255,.24);border-radius:14px;padding:16px;display:flex;flex-direction:column;}
+  .ttl{font-size:11px;letter-spacing:3px;color:var(--cy);margin-bottom:10px;text-shadow:0 0 8px var(--cy2);}
+  #cam{width:100%;border-radius:10px;background:#010309;aspect-ratio:4/3;object-fit:cover;transform:scaleX(-1);border:1px solid rgba(56,230,255,.2);}
+  .btn{background:linear-gradient(90deg,var(--cy2),var(--cy));border:none;border-radius:9px;color:#04101c;font-family:inherit;
+    font-size:14px;letter-spacing:2px;padding:12px;margin-top:12px;cursor:pointer;font-weight:700;}
+  .btn.alt{background:rgba(10,157,255,.16);border:1px solid var(--cy2);color:#eaffff;font-weight:400;}
+  .btn:hover{box-shadow:0 0 16px var(--cy);}
+  #out{flex:1;overflow-y:auto;white-space:pre-wrap;line-height:1.55;font-size:15px;color:#eaf6ff;padding-right:6px;}
+  #out .ph{color:var(--dim);}
+  #out .discl{color:var(--warn);border-top:1px solid rgba(255,196,107,.3);margin-top:14px;padding-top:10px;font-size:13px;}
+  #st{font-size:11px;color:var(--dim);margin-top:8px;min-height:16px;letter-spacing:1px;}
+  #st.busy{color:var(--cy);} #st.err{color:#ff6b6b;}
+  input[type=file]{display:none;}
+  @media(max-width:760px){.wrap{grid-template-columns:1fr;}}
+</style>
+<script src="/static/boot.js"></script>
+</head>
+<body>
+<div id="disc">⚠ Erklärung zur Orientierung — ersetzt keine ärztliche oder rechtliche Beratung.</div>
+<div id="hdr"><div class="b">R E N C O R A</div><div class="s">ADVISOR · DOKUMENT-HILFE</div></div>
+
+<div class="wrap">
+  <div class="panel">
+    <div class="ttl">DOKUMENT</div>
+    <video id="cam" autoplay playsinline muted></video>
+    <button class="btn" id="shoot">📷 FOTO &amp; ERKLÄREN</button>
+    <button class="btn alt" id="pick">📄 Datei wählen (PDF/Bild)</button>
+    <input type="file" id="file" accept="image/*,.pdf,.docx,.txt">
+    <div id="st">Halte ein Dokument vor die Kamera oder wähle eine Datei.</div>
+  </div>
+  <div class="panel">
+    <div class="ttl">RENCORA ERKLÄRT</div>
+    <div id="out"><span class="ph">Die Erklärung erscheint hier — was das Dokument ist, was du ausfüllen musst, Fristen und was auf dich zukommt.</span></div>
+  </div>
+</div>
+
+<script>
+const TOKEN=sessionStorage.getItem('jarvis_token')||'';
+if(!TOKEN) location.replace('/local?to=%2Fadvisor');
+const st=document.getElementById('st'), out=document.getElementById('out');
+function setSt(t,cls){st.textContent=t;st.className=cls||'';}
+
+// webcam
+navigator.mediaDevices.getUserMedia({video:{width:1280,height:960,facingMode:'environment'}})
+  .then(s=>document.getElementById('cam').srcObject=s)
+  .catch(()=>navigator.mediaDevices.getUserMedia({video:true}).then(s=>document.getElementById('cam').srcObject=s).catch(()=>setSt('Keine Kamera — nutze „Datei wählen".','err')));
+
+// live feed: show Rencora's explanation as it arrives
+const p=location.protocol==='https:'?'wss':'ws';
+try{ const ws=new WebSocket(`${p}://${location.host}/ws?token=${encodeURIComponent(TOKEN)}`);
+  ws.onmessage=e=>{let m;try{m=JSON.parse(e.data);}catch{return;}
+    if(m.type==='log'&&m.speaker==='jarvis'){ renderExplanation(m.text); setSt('Fertig.',''); } };
+}catch{}
+function renderExplanation(text){
+  const disc='ersetzt keine ärztliche oder rechtliche Beratung';
+  let main=text, tail='';
+  const i=text.indexOf('Hinweis:');
+  if(i>=0){ main=text.slice(0,i).trim(); tail=text.slice(i).trim(); }
+  out.innerHTML=''; const d=document.createElement('div'); d.textContent=main; out.appendChild(d);
+  if(tail){ const w=document.createElement('div'); w.className='discl'; w.textContent=tail; out.appendChild(w); }
+}
+
+async function upload(blob, name){
+  const fd=new FormData(); fd.append('file', blob, name);
+  const r=await fetch('/api/upload',{method:'POST',headers:{'Authorization':'Bearer '+TOKEN},body:fd});
+  if(!r.ok) throw new Error('Upload fehlgeschlagen');
+  return r.json();
+}
+async function explain(){
+  await fetch('/api/command',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+TOKEN},
+    body:JSON.stringify({text:'Erkläre mir bitte das gerade hochgeladene Dokument mit dem explain_document Werkzeug: was ist es, was muss ich ausfüllen, welche Fristen, was kommt auf mich zu.'})});
+}
+
+document.getElementById('shoot').addEventListener('click',async ()=>{
+  const v=document.getElementById('cam');
+  if(!v.videoWidth){ setSt('Kamera noch nicht bereit.','err'); return; }
+  const c=document.createElement('canvas'); c.width=v.videoWidth; c.height=v.videoHeight;
+  c.getContext('2d').drawImage(v,0,0);
+  c.toBlob(async blob=>{ try{ setSt('Lade Foto hoch…','busy'); await upload(blob,'dokument.png');
+    setSt('Rencora liest das Dokument…','busy'); out.innerHTML='<span class="ph">Rencora liest…</span>'; await explain();
+  }catch(e){ setSt('Fehler: '+e.message,'err'); } },'image/png');
+});
+document.getElementById('pick').addEventListener('click',()=>document.getElementById('file').click());
+document.getElementById('file').addEventListener('change',async e=>{
+  const f=e.target.files[0]; if(!f) return;
+  try{ setSt('Lade Datei hoch…','busy'); await upload(f,f.name);
+    setSt('Rencora liest das Dokument…','busy'); out.innerHTML='<span class="ph">Rencora liest…</span>'; await explain();
+  }catch(err){ setSt('Fehler: '+err.message,'err'); }
+});
+</script>
+</body>
+</html>

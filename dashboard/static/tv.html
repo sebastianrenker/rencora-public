@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RENCORA TV</title>
+<style>
+  :root{ --pp:#b06bff; --pp2:#7a3fe0; --dim:#6a4fa0; --core:#f0e6ff; --bg:#03040a; --ok:#5ef2a0; --ink:#e7dcff; }
+  *{box-sizing:border-box;} html,body{margin:0;height:100%;background:var(--bg);overflow:hidden;cursor:none;
+    font-family:'Consolas','SF Mono','Courier New',monospace;color:var(--ink);}
+  canvas{position:fixed;inset:0;z-index:0;}
+  /* TV-safe area (overscan) */
+  .safe{position:fixed;inset:4.5% 4%;z-index:10;pointer-events:none;}
+  #brand{position:absolute;top:0;left:0;font-size:20px;letter-spacing:12px;color:var(--pp);text-shadow:0 0 12px var(--pp2);}
+  #status{position:absolute;top:0;right:0;display:flex;gap:20px;align-items:center;font-size:18px;letter-spacing:2px;}
+  #status .pill{border:2px solid var(--pp2);color:var(--pp);border-radius:24px;padding:5px 16px;letter-spacing:3px;text-shadow:0 0 8px var(--pp2);}
+  #status .pill.on{border-color:var(--ok);color:var(--ok);text-shadow:0 0 8px rgba(94,242,160,.5);}
+  #clock{position:absolute;top:14%;left:0;right:0;text-align:center;}
+  #time{font-size:min(19vw,300px);font-weight:700;letter-spacing:10px;color:#fff;line-height:.95;
+    text-shadow:0 0 40px var(--pp2);font-variant-numeric:tabular-nums;}
+  #date{font-size:min(2.6vw,34px);letter-spacing:12px;color:var(--dim);margin-top:14px;text-transform:uppercase;}
+  #feed{position:absolute;left:0;bottom:0;width:44%;max-height:34%;overflow:hidden;
+    display:flex;flex-direction:column;gap:10px;justify-content:flex-end;}
+  .msg{font-size:min(1.9vw,26px);line-height:1.4;padding:10px 16px;border-radius:10px;animation:in .4s ease;}
+  @keyframes in{from{opacity:0;transform:translateY(10px);}}
+  .msg .lbl{font-size:min(1.1vw,15px);letter-spacing:2px;opacity:.7;margin-bottom:3px;}
+  .m-j{align-self:flex-start;background:rgba(176,107,255,.14);border-left:4px solid var(--pp);}
+  .m-u{align-self:flex-end;background:rgba(255,255,255,.08);border-right:4px solid var(--pp2);text-align:right;}
+  .m-s{align-self:center;font-size:min(1.2vw,17px);color:var(--dim);}
+  #hint{position:absolute;right:0;bottom:0;font-size:min(1.3vw,18px);color:var(--dim);letter-spacing:2px;text-align:right;}
+  #hint b{color:var(--pp);}
+  .tvbtn{font-size:20px;letter-spacing:2px;color:var(--ink);background:rgba(10,16,30,.7);
+    border:2px solid var(--pp2);border-radius:14px;padding:12px 20px;white-space:nowrap;transition:.12s;}
+  .tvbtn.focus{background:var(--pp);color:#0a0616;border-color:#fff;box-shadow:0 0 24px var(--pp);transform:scale(1.06);}
+  .tvbtn.rec{background:#ff2f4f;color:#fff;border-color:#ff8f8f;}
+  body.clockonly #feed,body.clockonly #brand{opacity:0;}
+  body.clockonly #clock{top:34%;}
+  #clock,#feed,#hint,#brand{transition:opacity .5s, top .5s;}
+</style>
+<script src="/static/identity.js"></script>
+<script src="/static/boot.js"></script>
+<script src="/static/nowplaying.js"></script>
+</head>
+<body>
+<canvas id="bg"></canvas>
+<div id="vwrap" style="position:fixed;inset:0;z-index:50;background:#000;display:none;">
+  <iframe id="tvframe" style="width:100%;height:100%;border:0;background:#000;" allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe>
+  <div id="vtitle" style="position:absolute;top:16px;left:24px;color:#fff;font-size:18px;letter-spacing:2px;text-shadow:0 0 10px #000;pointer-events:none;"></div>
+  <div id="vhint" style="position:absolute;bottom:16px;right:24px;color:#9fb;font-size:14px;letter-spacing:2px;pointer-events:none;">ZURÜCK oder STOPP zum Beenden</div>
+</div>
+<div class="safe">
+  <div id="brand" class="ident-name">RENCORA</div>
+  <div id="status"><span class="pill" id="assist">STANDBY</span><span class="pill" id="link">TV</span></div>
+  <div id="clock"><div id="time">--:--</div><div id="date">—</div></div>
+  <div id="feed"></div>
+  <div id="bar" style="position:absolute;left:0;right:0;bottom:0;display:flex;gap:14px;justify-content:center;">
+    <div class="tvbtn" data-act="voice">🎙️ SPRECHEN</div>
+    <div class="tvbtn" data-cmd="spiele entspannte Musik">🎵 MUSIK</div>
+    <div class="tvbtn" data-cmd="spiele ein Video">🎬 VIDEO</div>
+    <div class="tvbtn" data-cmd="nächster Titel">⏭️ WEITER</div>
+    <div class="tvbtn" data-cmd="Musik stoppen">⏹️ STOPP</div>
+    <div class="tvbtn" data-act="clock">🕒 NUR UHR</div>
+  </div>
+</div>
+
+<script>
+/* Rencora TV — 10-foot HUD for a Fire TV (open in the Silk browser at
+   http://<PC-IP>:8000/tv ). Read-only display token, connects to /ws for live feed.
+   Engine Mark-LI/FatihMakes CC BY-NC. */
+const TOKEN="__TVTOKEN__";
+const PP=[176,107,255], CORE='#f0e6ff';
+
+// ---- neural orb (Rencora purple) ----
+const bg=document.getElementById('bg'), bx=bg.getContext('2d');
+let W,H,DPR=Math.min(devicePixelRatio||1,2);
+function resize(){W=innerWidth;H=innerHeight;bg.width=W*DPR;bg.height=H*DPR;bg.style.width=W+'px';bg.style.height=H+'px';bx.setTransform(DPR,0,0,DPR,0,0);}
+addEventListener('resize',resize);resize();
+function randUnit(){let x,y,z,d;do{x=Math.random()*2-1;y=Math.random()*2-1;z=Math.random()*2-1;d=x*x+y*y+z*z;}while(d>1||d<1e-4);const s=1/Math.sqrt(d);return[x*s,y*s,z*s];}
+function cross(a,b){return[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];}
+function norm(a){const s=1/(Math.hypot(a[0],a[1],a[2])||1);return[a[0]*s,a[1]*s,a[2]*s];}
+const NF=24,NP=42,FIL=[];
+for(let f=0;f<NF;f++){let p=randUnit();let t=norm(cross(p,randUnit()));const pts=[];
+  for(let i=0;i<NP;i++){const rr=1+(Math.random()*2-1)*0.1;pts.push([p[0]*rr,p[1]*rr,p[2]*rr]);
+    p=norm([p[0]+t[0]*0.16,p[1]+t[1]*0.16,p[2]+t[2]*0.16]);
+    const tw=norm(cross(p,t));const a=(Math.random()*2-1)*0.9;
+    t=norm([t[0]+tw[0]*a*0.16,t[1]+tw[1]*a*0.16,t[2]+tw[2]*a*0.16]);
+    const dp=t[0]*p[0]+t[1]*p[1]+t[2]*p[2];t=norm([t[0]-p[0]*dp,t[1]-p[1]*dp,t[2]-p[2]*dp]);}
+  FIL.push(pts);}
+const PART=Array.from({length:130},()=>{const u=randUnit();const r=0.85+Math.random()*0.25;return[u[0]*r,u[1]*r,u[2]*r];});
+function rot(p,yaw,pitch){const cy=Math.cos(yaw),sy=Math.sin(yaw);const x1=p[0]*cy+p[2]*sy,z1=-p[0]*sy+p[2]*cy;
+  const cx=Math.cos(pitch),sx=Math.sin(pitch);return[x1,p[1]*cx-z1*sx,p[1]*sx+z1*cx];}
+let energy=0.35,energyTarget=0.35,speaking=false,t0=performance.now();
+const FRAME_MS=(localStorage.getItem('rencora_lite')==='1'||new URLSearchParams(location.search).has('lite'))?55:33;
+let lastFrame=0;
+function frame(now){
+  if(document.hidden){ setTimeout(()=>requestAnimationFrame(frame),250); return; }
+  if(now-lastFrame<FRAME_MS){ requestAnimationFrame(frame); return; } lastFrame=now;
+  const t=(now-t0)*0.001;
+  energyTarget=speaking?1.0:(0.32+Math.sin(t*1.3)*0.05);energy+=(energyTarget-energy)*0.12;
+  bx.setTransform(DPR,0,0,DPR,0,0);bx.globalCompositeOperation='source-over';bx.fillStyle='rgba(3,4,10,0.34)';bx.fillRect(0,0,W,H);
+  bx.globalCompositeOperation='lighter';bx.lineCap='round';
+  const cx=W*0.72,cy=H*0.5,scale=Math.min(W,H)*0.30*(1+0.06*energy*Math.sin(t*7));
+  const dist=3.2,yaw=t*0.32,pitch=0.5+Math.sin(t*0.4)*0.12;const[R,G,B]=PP;
+  const proj=p=>{const q=rot(p,yaw,pitch);const f=dist/(dist+q[2]);return[cx+q[0]*f*scale,cy+q[1]*f*scale,q[2]];};
+  bx.shadowColor=`rgb(${R},${G},${B})`;bx.shadowBlur=6+8*energy;
+  for(const pts of FIL){bx.beginPath();for(let i=0;i<pts.length;i++){const pr=proj(pts[i]);if(i===0)bx.moveTo(pr[0],pr[1]);else bx.lineTo(pr[0],pr[1]);}
+    bx.strokeStyle=`rgba(${R},${G},${B},${0.3+0.55*energy})`;bx.lineWidth=0.8+1.2*energy;bx.stroke();}
+  bx.shadowBlur=4;for(const p of PART){const pr=proj(p);const depth=(pr[2]+1.2)/2.4;
+    bx.fillStyle=`rgba(${R},${G},${B},${(0.2+0.7*depth)*(0.5+0.5*energy)})`;bx.beginPath();bx.arc(pr[0],pr[1],0.6+1.1*depth,0,7);bx.fill();}
+  const cr=scale*0.16*(0.85+Math.sin(t*3)*0.15)*(0.7+0.6*energy);
+  bx.fillStyle=CORE;bx.shadowColor=`rgb(${R},${G},${B})`;bx.shadowBlur=40+40*energy;bx.beginPath();bx.arc(cx,cy,cr,0,7);bx.fill();
+  bx.shadowBlur=0;requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// ---- clock ----
+const DAYS=['SONNTAG','MONTAG','DIENSTAG','MITTWOCH','DONNERSTAG','FREITAG','SAMSTAG'];
+const MON=['JAN','FEB','MÄR','APR','MAI','JUN','JUL','AUG','SEP','OKT','NOV','DEZ'];
+function tick(){const d=new Date(),p=n=>String(n).padStart(2,'0');
+  document.getElementById('time').textContent=`${p(d.getHours())}:${p(d.getMinutes())}`;
+  document.getElementById('date').textContent=`${DAYS[d.getDay()]} · ${p(d.getDate())} ${MON[d.getMonth()]} ${d.getFullYear()}`;}
+tick();setInterval(tick,1000);
+
+// ---- feed / status via /ws (read-only) ----
+const feed=document.getElementById('feed');
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function add(k,t,l){const d=document.createElement('div');d.className='msg '+k;d.innerHTML=(l?`<div class="lbl">${l}</div>`:'')+esc(t);
+  feed.appendChild(d);while(feed.children.length>5)feed.removeChild(feed.firstChild);}
+function setAssist(mode){const a=document.getElementById('assist');a.classList.toggle('on',mode!=='sleep');
+  a.textContent=mode==='speaking'?'SPRICHT':mode==='active'?'AKTIV':'STANDBY';}
+function connect(){ if(!TOKEN||TOKEN.indexOf('TVTOKEN')>=0){document.getElementById('link').textContent='OFFLINE';return;}
+  const p=location.protocol==='https:'?'wss':'ws';
+  const ws=new WebSocket(`${p}://${location.host}/ws?token=${encodeURIComponent(TOKEN)}`);
+  ws.onopen=()=>{document.getElementById('link').textContent='LIVE';};
+  ws.onclose=()=>{document.getElementById('link').textContent='TV';};
+  ws.onmessage=e=>{let m;try{m=JSON.parse(e.data);}catch{return;}
+    if(m.type==='speaking'){speaking=!!m.value;setAssist(speaking?'speaking':'active');}
+    else if(m.type==='log')add(m.speaker==='jarvis'?'m-j':'m-u',m.text,m.speaker==='jarvis'?'RENCORA':'DU');
+    else if(m.type==='status')setAssist(m.state==='active'?'active':'sleep');
+    else if(m.type==='sys')add('m-s',m.text);
+    else if(m.type==='wake'){add('m-s','Wake erkannt…');setAssist('active');}
+    else if(m.type==='play_video'){ playVideo(m); }};
+}
+connect();
+
+// ---- Fire TV video playback (video sent from Rencora) ----
+const vwrap=document.getElementById('vwrap'), vframe=document.getElementById('tvframe');
+function videoOn(){ return vwrap.style.display!=='none'; }
+function playVideo(m){ const vid=m&&(m.videoId||m.url); if(!vid)return;
+  document.getElementById('vtitle').textContent=m.title||''; add('m-s','Video: '+(m.title||''));
+  const src=/^[\w-]{6,20}$/.test(vid) ? ('https://www.youtube.com/embed/'+vid+'?autoplay=1&playsinline=1&rel=0&modestbranding=1') : vid;
+  vframe.src=src; vwrap.style.display='block'; }
+function stopVideo(){ try{vframe.src='about:blank';}catch{} vwrap.style.display='none'; }
+
+// ---- TV remote control: D-pad moves focus, OK activates ----
+const BTNS=[...document.querySelectorAll('.tvbtn')]; let fi=0;
+function focusBtn(i){ fi=(i+BTNS.length)%BTNS.length; BTNS.forEach((b,j)=>b.classList.toggle('focus',j===fi)); }
+focusBtn(0);
+function cmd(text){ fetch('/api/command',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+TOKEN},body:JSON.stringify({text})}).catch(()=>{}); }
+function activate(b){ if(!b)return;
+  if(b.dataset.cmd){ cmd(b.dataset.cmd); if(/stopp/i.test(b.dataset.cmd)) stopVideo(); }
+  else if(b.dataset.act==='clock'){ document.body.classList.toggle('clockonly'); }
+  else if(b.dataset.act==='voice'){ toggleVoice(b); } }
+addEventListener('keydown',e=>{ const k=e.key;
+  if(videoOn()){                                   // while a video plays, Back/Escape closes it
+    if(k==='Escape'||k==='Backspace'||k==='GoBack'||k==='BrowserBack'){ stopVideo(); e.preventDefault(); }
+    return;                                         // other keys go to the YouTube player
+  }
+  if(k==='ArrowRight'){focusBtn(fi+1);e.preventDefault();}
+  else if(k==='ArrowLeft'){focusBtn(fi-1);e.preventDefault();}
+  else if(k==='Enter'||e.keyCode===13){ activate(BTNS[fi]); e.preventDefault(); } });
+BTNS.forEach((b,i)=>{ b.addEventListener('click',()=>{focusBtn(i);activate(b);}); });
+
+// hold-to-talk mic -> Rencora (works if the TV/browser exposes a microphone)
+let vWs=null,aCtx=null,micStream=null,vnode=null,rec=false;
+async function toggleVoice(b){ if(rec){ stopVoice(b); return; } rec=true; b.classList.add('rec'); b.textContent='● HÖRT ZU';
+  try{ micStream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true}});
+    aCtx=new (window.AudioContext||window.webkitAudioContext)({sampleRate:16000}); const src=aCtx.createMediaStreamSource(micStream); vnode=aCtx.createScriptProcessor(2048,1,1);
+    vWs=new WebSocket(`${p}://${location.host}/ws/phone-audio?token=${encodeURIComponent(TOKEN)}`); vWs.binaryType='arraybuffer';
+    vnode.onaudioprocess=ev=>{if(!vWs||vWs.readyState!==1)return;const f=ev.inputBuffer.getChannelData(0);const q=new Int16Array(f.length);
+      for(let i=0;i<f.length;i++){let s=Math.max(-1,Math.min(1,f[i]));q[i]=s<0?s*0x8000:s*0x7fff;}vWs.send(q.buffer);};
+    src.connect(vnode);vnode.connect(aCtx.destination);
+  }catch(err){ add('m-s','Kein Mikrofon am TV — nutze das Handy (/remote).'); stopVoice(b); } }
+function stopVoice(b){ rec=false; b.classList.remove('rec'); b.textContent='🎙️ SPRECHEN';
+  try{vnode&&vnode.disconnect();}catch{} try{micStream&&micStream.getTracks().forEach(t=>t.stop());}catch{} try{aCtx&&aCtx.close();}catch{} try{vWs&&vWs.close();}catch{} vWs=null; }
+</script>
+</body>
+</html>

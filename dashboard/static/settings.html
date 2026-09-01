@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RENCORA SETTINGS</title>
+<style>
+  :root{ --cy:#38e6ff; --cy2:#0a9dff; --pp:#b06bff; --dim:#5a6a80; --bg:#04070e; --ok:#5ef2a0; --ink:#dbe9ff; }
+  *{box-sizing:border-box;} html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);
+    font-family:'Consolas','SF Mono','Courier New',monospace;}
+  .wrap{max-width:640px;margin:0 auto;padding:26px 18px 50px;display:flex;flex-direction:column;gap:16px;}
+  header{text-align:center;margin-bottom:6px;}
+  header .b{font-size:22px;letter-spacing:10px;color:#fff;text-shadow:0 0 14px var(--cy2);}
+  header .s{font-size:10px;letter-spacing:4px;color:var(--dim);margin-top:2px;}
+  .card{background:rgba(8,20,36,.42);border:1px solid rgba(56,230,255,.24);border-radius:13px;padding:16px 18px;}
+  .card h3{margin:0 0 10px;font-size:13px;letter-spacing:3px;color:var(--cy);text-shadow:0 0 8px var(--cy2);}
+  .card .st{font-size:11px;color:var(--dim);margin-bottom:8px;}
+  .st .on{color:var(--ok);} .st .off{color:#ffb05a;}
+  input{width:100%;background:rgba(8,20,36,.6);border:1px solid rgba(56,230,255,.3);border-radius:9px;color:#fff;
+    font-family:inherit;font-size:15px;padding:11px 13px;outline:none;margin-bottom:8px;}
+  input:focus{border-color:var(--cy);}
+  .row{display:flex;gap:8px;}
+  button{background:var(--cy2);border:none;border-radius:9px;color:#04101c;font-family:inherit;font-size:13px;
+    letter-spacing:1px;padding:11px 16px;cursor:pointer;font-weight:700;white-space:nowrap;}
+  button.alt{background:rgba(10,157,255,.16);border:1px solid var(--cy2);color:#eaffff;font-weight:400;}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0;}
+  .chip{background:rgba(176,107,255,.16);border:1px solid var(--pp);border-radius:16px;padding:4px 10px;font-size:12px;cursor:pointer;}
+  .chip:hover{background:var(--pp);color:#0a0616;}
+  .hint{font-size:11px;color:var(--dim);line-height:1.5;margin-top:6px;} .hint a{color:var(--cy);}
+  a.link{color:var(--cy);text-decoration:none;}
+  #msg{text-align:center;font-size:12px;min-height:16px;color:var(--ok);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><div class="b">R E N C O R A</div><div class="s">EINSTELLUNGEN</div></header>
+  <div id="msg"></div>
+
+  <div class="card">
+    <h3>GROK (TOKEN-VERTEILUNG)</h3>
+    <div class="st">Status: <span id="grokState" class="off">nicht eingerichtet</span></div>
+    <input id="grokKey" type="password" placeholder="xAI-API-Key (xai-…)" autocomplete="off">
+    <button onclick="saveGrok()">GROK SPEICHERN</button>
+    <div class="hint">Key von <a href="https://console.x.ai" target="_blank" rel="noopener">console.x.ai</a>. Danach lagert Rencora schwere Aufgaben an Grok aus & weicht bei Gemini-Limit automatisch aus.</div>
+  </div>
+
+  <div class="card">
+    <h3>UPDATE-INTERESSEN</h3>
+    <div class="chips" id="interestChips"></div>
+    <div class="row"><input id="newInterest" placeholder="z.B. KI-News, Bitcoin"><button class="alt" onclick="addInterest()">+ HINZU</button></div>
+    <div class="hint">Themen für dein „Update mich" / Tagesbriefing. Chip anklicken = entfernen.</div>
+  </div>
+
+  <div class="card">
+    <h3>BRAIN (WISSEN)</h3>
+    <div class="st" id="brainStats">…</div>
+    <button class="alt" onclick="scanBrain()" id="scanBtn">◉ JETZT NEU SCANNEN</button>
+    <div class="hint">Indexiert deinen Code, Dokumente, GitHub & Claude-Daten neu. Läuft sonst automatisch im Hintergrund.</div>
+  </div>
+
+  <div class="card">
+    <h3>BAMBU 3D-DRUCKER</h3>
+    <div class="st">Status: <span id="bambuState" class="off">nicht eingerichtet</span></div>
+    <input id="bHost" placeholder="Drucker-IP (192.168.x.x)">
+    <div class="row"><input id="bSerial" placeholder="Serial (01S…)"><input id="bCode" placeholder="Access-Code"></div>
+    <button onclick="saveBambu()">DRUCKER SPEICHERN</button>
+    <div class="hint">LAN-Mode am Drucker aktivieren. Access-Code: Drucker → Einstellungen → Netzwerk.</div>
+  </div>
+
+  <div class="card">
+    <h3>SMART-HOME</h3>
+    <div class="hint">Geräte werden in <b>config/smarthome.json</b> eingetragen (Hue/Home Assistant/Tasmota). Sag mir welche du hast, dann richte ich sie ein.</div>
+  </div>
+
+  <div class="card">
+    <h3>OBERFLÄCHEN</h3>
+    <div class="hint"><a class="link" href="/home">Start</a> · <a class="link" href="/remote">Fernbedienung</a> · <a class="link" href="/brain">Brain</a> · <a class="link" href="/stage">Leinwand</a> · <a class="link" href="/setup">Name &amp; Gemini-Key</a></div>
+  </div>
+</div>
+
+<script>
+function msg(t){const m=document.getElementById('msg');m.textContent=t;setTimeout(()=>{if(m.textContent===t)m.textContent='';},3000);}
+async function load(){
+  try{ const s=await fetch('/api/settings-status').then(r=>r.json());
+    const g=document.getElementById('grokState'); g.textContent=s.grok_set?'eingerichtet ✓':'nicht eingerichtet'; g.className=s.grok_set?'on':'off';
+    const b=document.getElementById('bambuState'); b.textContent=s.bambu_set?'eingerichtet ✓':'nicht eingerichtet'; b.className=s.bambu_set?'on':'off';
+    const bs=s.brain||{}; document.getElementById('brainStats').textContent=(bs.total||0)+' Neuronen · PC '+((bs.by_source||{}).pc||0)+' · GitHub '+((bs.by_source||{}).github||0)+' · Claude '+((bs.by_source||{}).claude||0);
+    renderInterests(s.interests||[]);
+  }catch{ msg('Kein Uplink.'); }
+}
+function renderInterests(list){ const c=document.getElementById('interestChips'); c.innerHTML='';
+  if(!list.length){ c.innerHTML='<span style="color:var(--dim);font-size:12px">noch keine</span>'; return; }
+  list.forEach(t=>{ const el=document.createElement('span'); el.className='chip'; el.textContent=t+' ✕';
+    el.onclick=()=>save({remove_interest:t}); c.appendChild(el); }); }
+async function save(body){ try{ const r=await fetch('/api/settings-save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());
+  if(r.ok){ msg('Gespeichert.'); load(); } else msg(r.error||'Fehler.'); }catch{ msg('Verbindungsfehler.'); } }
+function saveGrok(){ const k=document.getElementById('grokKey').value.trim(); if(!k)return msg('Key eingeben.'); save({grok_key:k}); document.getElementById('grokKey').value=''; }
+function addInterest(){ const t=document.getElementById('newInterest').value.trim(); if(!t)return; save({add_interest:t}); document.getElementById('newInterest').value=''; }
+function saveBambu(){ const host=document.getElementById('bHost').value.trim(),serial=document.getElementById('bSerial').value.trim(),code=document.getElementById('bCode').value.trim();
+  if(!host||!serial||!code)return msg('IP, Serial und Code nötig.'); save({bambu:{host,serial,access_code:code}}); }
+async function scanBrain(){ const b=document.getElementById('scanBtn'); b.textContent='◉ SCANNE…'; b.disabled=true;
+  try{ await fetch('/api/brain/scan',{method:'POST'}); msg('Brain neu indexiert.'); }catch{ msg('Scan-Fehler.'); }
+  b.textContent='◉ JETZT NEU SCANNEN'; b.disabled=false; load(); }
+load();
+</script>
+</body>
+</html>

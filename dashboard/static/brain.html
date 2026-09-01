@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RENCORA BRAIN</title>
+<style>
+  :root{ --pp:#b06bff; --pp2:#7a3fe0; --or:#ff9b3d; --or2:#c96a12; --bg:#04060d; --dim:#5a6a80; --ink:#dbe9ff; }
+  *{box-sizing:border-box;} html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);overflow:hidden;
+    font-family:'Consolas','SF Mono','Courier New',monospace;}
+  #gl{position:fixed;inset:0;z-index:0;cursor:grab;} #gl:active{cursor:grabbing;}
+  #hdr{position:fixed;top:14px;left:0;right:0;text-align:center;z-index:5;pointer-events:none;}
+  #hdr .b{font-size:20px;letter-spacing:10px;color:#fff;text-shadow:0 0 14px var(--pp2);}
+  #hdr .s{font-size:10px;letter-spacing:5px;color:var(--dim);margin-top:2px;}
+  #bar{position:fixed;top:14px;left:16px;z-index:6;display:flex;gap:10px;align-items:center;}
+  .btn{background:rgba(176,107,255,.16);border:1px solid var(--pp2);color:#fff;font-family:inherit;font-size:12px;
+    letter-spacing:1px;padding:8px 13px;border-radius:8px;cursor:pointer;}
+  .btn:hover{background:var(--pp2);}
+  #stats{font-size:11px;color:var(--dim);letter-spacing:1px;}
+  #legend{position:fixed;top:14px;right:16px;z-index:6;display:flex;gap:16px;font-size:12px;letter-spacing:2px;}
+  #legend .l{display:flex;align-items:center;gap:7px;} .swatch{width:11px;height:11px;border-radius:50%;}
+  .sw-p{background:var(--pp);box-shadow:0 0 8px var(--pp);} .sw-o{background:var(--or);box-shadow:0 0 8px var(--or);}
+  .sw-g{background:#5ef2a0;box-shadow:0 0 8px #5ef2a0;} .sw-b{background:#3fb0ff;box-shadow:0 0 8px #3fb0ff;}
+  #search{position:fixed;bottom:16px;left:16px;z-index:6;background:rgba(8,16,30,.7);border:1px solid rgba(176,107,255,.3);
+    border-radius:9px;color:#fff;font-family:inherit;font-size:13px;padding:9px 12px;width:280px;outline:none;}
+  #panel{position:fixed;top:0;right:0;bottom:0;width:min(460px,42vw);z-index:8;background:rgba(6,10,20,.94);
+    border-left:1px solid rgba(176,107,255,.3);transform:translateX(100%);transition:transform .25s;display:flex;flex-direction:column;}
+  #panel.open{transform:none;}
+  #panel .ph{padding:16px 18px;border-bottom:1px solid rgba(255,255,255,.08);}
+  #panel .pname{font-size:16px;color:#fff;word-break:break-all;}
+  #panel .psrc{font-size:11px;letter-spacing:2px;margin-top:5px;}
+  #panel .psrc.rencora{color:var(--pp);} #panel .psrc.claude{color:var(--or);}
+  #panel .psrc.github{color:#5ef2a0;} #panel .psrc.pc{color:#3fb0ff;}
+  #panel .ppath{font-size:10px;color:var(--dim);margin-top:4px;word-break:break-all;}
+  #panel pre{flex:1;overflow:auto;margin:0;padding:14px 18px;font-size:12px;line-height:1.5;color:#cfe4ff;white-space:pre-wrap;word-break:break-word;}
+  #panel .close{position:absolute;top:12px;right:14px;cursor:pointer;color:var(--dim);font-size:20px;}
+  #panel .close:hover{color:#fff;}
+  #boot{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;color:var(--dim);letter-spacing:3px;font-size:13px;}
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="hdr"><div class="b">R E N C O R A &nbsp;·&nbsp; B R A I N</div><div class="s">ZWEI HIRNE · RENCORA + CLAUDE</div></div>
+<div id="bar">
+  <button class="btn" id="scan">◉ NEURONEN SCANNEN</button>
+  <span id="stats">…</span>
+</div>
+<div id="legend">
+  <div class="l"><span class="swatch sw-p"></span>RENCORA</div>
+  <div class="l"><span class="swatch sw-o"></span>CLAUDE</div>
+  <div class="l"><span class="swatch sw-g"></span>GITHUB</div>
+  <div class="l"><span class="swatch sw-b"></span>PC</div>
+</div>
+<input id="search" placeholder="Neuron / Code / Prompt suchen…" autocomplete="off">
+<div id="panel"><span class="close" id="pclose">✕</span>
+  <div class="ph"><div class="pname" id="pname"></div><div class="psrc" id="psrc"></div><div class="ppath" id="ppath"></div></div>
+  <pre id="ptext"></pre>
+</div>
+<div id="boot">LADE NEURONEN…</div>
+
+<script>
+const C={rencora:[176,107,255], claude:[255,155,61], github:[94,242,160], pc:[63,176,255], cloud:[120,200,255]};
+const cv=document.getElementById('gl'), x=cv.getContext('2d');
+let W,H,DPR=Math.min(devicePixelRatio||1,2);
+function resize(){W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;cv.style.width=W+'px';cv.style.height=H+'px';x.setTransform(DPR,0,0,DPR,0,0);}
+addEventListener('resize',resize);resize();
+
+let NODES=[], EDGES=[], view={x:0,y:0,z:1}, hover=null, selected=null;
+function centerFor(src){ return ({
+  rencora:{x:W*0.27,y:H*0.44}, claude:{x:W*0.73,y:H*0.44},
+  github:{x:W*0.50,y:H*0.20},  pc:{x:W*0.50,y:H*0.80}, cloud:{x:W*0.50,y:H*0.5}
+})[src] || {x:W*0.5,y:H*0.5}; }
+
+async function load(){
+  try{
+    const g=await fetch('/api/brain/graph').then(r=>r.json());
+    if(g.error){ document.getElementById('boot').textContent='Fehler: '+g.error; return; }
+    const idmap={};
+    NODES=g.nodes.map((n,i)=>{ const c=centerFor(n.source);
+      const o={...n, x:c.x+(Math.random()-0.5)*260, y:c.y+(Math.random()-0.5)*260, vx:0,vy:0,
+        r:Math.max(3,Math.min(11,3+Math.log((n.size||500)+1)*0.7))}; idmap[n.id]=o; return o; });
+    EDGES=g.edges.map(([a,b])=>[idmap[a],idmap[b]]).filter(e=>e[0]&&e[1]);
+    document.getElementById('boot').style.display='none';
+    window.__total=g.total||NODES.length; window.__shown=g.shown||NODES.length;
+    updateStats();
+  }catch(e){ document.getElementById('boot').textContent='Kein Uplink zur Brain-DB.'; }
+}
+async function updateStats(){ try{ const s=await fetch('/api/brain/stats').then(r=>r.json());
+  const bs=s.by_source||{}; const shown=window.__shown||0;
+  document.getElementById('stats').textContent=
+    (s.total||0)+' Neuronen ('+shown+' sichtbar) · PC '+(bs.pc||0)+' · GitHub '+(bs.github||0)+' · Claude '+(bs.claude||0)+' · Rencora '+(bs.rencora||0); }catch{} }
+
+// physics
+function step(){
+  const N=NODES.length; if(!N) return;
+  const heavy = N<=700;                                        // O(n^2) repulsion only for small graphs
+  for(let i=0;i<N;i++){ const a=NODES[i]; const c=centerFor(a.source);
+    a.vx+=(c.x-a.x)*(heavy?0.0009:0.006); a.vy+=(c.y-a.y)*(heavy?0.0009:0.006);
+    if(heavy){ for(let j=i+1;j<N;j++){ const b=NODES[j]; let dx=a.x-b.x,dy=a.y-b.y; let d2=dx*dx+dy*dy||0.01;
+      if(d2<26000){ const f=90/d2; a.vx+=dx*f;a.vy+=dy*f; b.vx-=dx*f;b.vy-=dy*f; } } } }
+  for(const[a,b] of EDGES){ let dx=b.x-a.x,dy=b.y-a.y; const d=Math.hypot(dx,dy)||1; const f=(d-(heavy?60:34))*0.004;
+    a.vx+=dx/d*f;a.vy+=dy/d*f; b.vx-=dx/d*f;b.vy-=dy/d*f; }
+  for(const a of NODES){ a.vx*=0.86;a.vy*=0.86; a.x+=a.vx;a.y+=a.vy; }
+}
+function T(px,py){ return [ (px-W/2)*view.z+W/2+view.x, (py-H/2)*view.z+H/2+view.y ]; }
+function draw(){
+  x.setTransform(DPR,0,0,DPR,0,0); x.clearRect(0,0,W,H);
+  x.fillStyle='rgba(4,6,13,1)'; x.fillRect(0,0,W,H);
+  x.globalCompositeOperation='lighter';
+  // edges
+  x.lineWidth=1;
+  for(const[a,b] of EDGES){ const[ax,ay]=T(a.x,a.y),[bx,by]=T(b.x,b.y); const c=C[a.source];
+    x.strokeStyle=`rgba(${c[0]},${c[1]},${c[2]},0.12)`; x.beginPath();x.moveTo(ax,ay);x.lineTo(bx,by);x.stroke(); }
+  // nodes (lighter glow when the graph is dense, for performance)
+  const dense=NODES.length>700; const baseBlur=dense?3:8;
+  for(const n of NODES){ const[px,py]=T(n.x,n.y); const c=C[n.source]||[150,150,150];
+    const big=(n===hover||n===selected); x.shadowColor=`rgb(${c[0]},${c[1]},${c[2]})`; x.shadowBlur=big?18:baseBlur;
+    x.fillStyle=`rgb(${c[0]},${c[1]},${c[2]})`; x.beginPath(); x.arc(px,py,n.r*view.z*(big?1.5:1),0,7); x.fill(); }
+  x.shadowBlur=0;
+  // hover label
+  if(hover){ const[px,py]=T(hover.x,hover.y); x.globalCompositeOperation='source-over';
+    x.font='12px Consolas'; const w=x.measureText(hover.name).width+14;
+    x.fillStyle='rgba(6,10,20,.9)'; x.fillRect(px+10,py-10,w,20);
+    x.fillStyle='#fff'; x.fillText(hover.name,px+17,py+4); }
+  x.globalCompositeOperation='source-over';
+}
+const FRAME_MS=(localStorage.getItem('rencora_lite')==='1'||new URLSearchParams(location.search).has('lite'))?60:33;
+let lastFrame=0;
+function loop(){ requestAnimationFrame(loop);
+  if(document.hidden) return;
+  const now=performance.now(); if(now-lastFrame<FRAME_MS) return; lastFrame=now;
+  step(); draw(); }
+load().then(loop);
+
+// interaction
+function pick(mx,my){ let best=null,bd=1e9;
+  for(const n of NODES){ const[px,py]=T(n.x,n.y); const d=Math.hypot(px-mx,py-my);
+    if(d<Math.max(10,n.r*view.z+6) && d<bd){ bd=d; best=n; } } return best; }
+let dragging=false,last=null;
+cv.addEventListener('mousemove',e=>{ if(dragging){ view.x+=e.clientX-last.x; view.y+=e.clientY-last.y; last={x:e.clientX,y:e.clientY}; return; }
+  hover=pick(e.clientX,e.clientY); cv.style.cursor=hover?'pointer':'grab'; });
+cv.addEventListener('mousedown',e=>{ const n=pick(e.clientX,e.clientY); if(n){ openNode(n); } else { dragging=true; last={x:e.clientX,y:e.clientY}; } });
+addEventListener('mouseup',()=>dragging=false);
+cv.addEventListener('wheel',e=>{ e.preventDefault(); const f=e.deltaY<0?1.1:0.9; view.z=Math.max(0.3,Math.min(4,view.z*f)); },{passive:false});
+
+async function openNode(n){ selected=n;
+  document.getElementById('pname').textContent=n.name;
+  const lbl={rencora:'RENCORA',claude:'CLAUDE · zweites Hirn',github:'GITHUB',pc:'PC-DATEI',cloud:'CLOUD'}[n.source]||n.source.toUpperCase();
+  const s=document.getElementById('psrc'); s.textContent=lbl; s.className='psrc '+n.source;
+  document.getElementById('ppath').textContent=''; document.getElementById('ptext').textContent='Lade…';
+  document.getElementById('panel').classList.add('open');
+  try{ const d=await fetch('/api/brain/node?id='+n.id).then(r=>r.json());
+    document.getElementById('ppath').textContent=d.path||'';
+    document.getElementById('ptext').textContent=d.text||'(kein Text)';
+  }catch{ document.getElementById('ptext').textContent='Konnte Neuron nicht laden.'; } }
+document.getElementById('pclose').addEventListener('click',()=>{document.getElementById('panel').classList.remove('open');selected=null;});
+
+// scan
+document.getElementById('scan').addEventListener('click',async ()=>{
+  const b=document.getElementById('scan'); b.textContent='◉ SCANNE…'; b.disabled=true;
+  try{ await fetch('/api/brain/scan',{method:'POST'}); await load(); }catch{}
+  b.textContent='◉ NEURONEN SCANNEN'; b.disabled=false;
+});
+
+// search -> jump to first hit
+document.getElementById('search').addEventListener('keydown',async e=>{ if(e.key!=='Enter')return;
+  const q=e.target.value.trim(); if(!q)return;
+  try{ const res=await fetch('/api/brain/search?q='+encodeURIComponent(q)).then(r=>r.json());
+    // search endpoint returns list; find matching node by path
+    const hit=(res.results||res||[])[0]; if(hit){ const n=NODES.find(nn=>nn.name===hit.name);
+      if(n){ view.x=W/2-T(n.x,n.y)[0]+view.x; view.y=H/2-T(n.y,n.y)[1]+view.y; openNode(n); } } }catch{}
+});
+</script>
+</body>
+</html>

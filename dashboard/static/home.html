@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RENCORA HOME</title>
+<style>
+  :root{ --cy:#38e6ff; --cy2:#0a9dff; --dim:#0b5f8f; --bg:#02060c; --ok:#5ef2a0; --ink:#cfeeff; }
+  *{box-sizing:border-box;} html,body{margin:0;height:100%;background:var(--bg);overflow:hidden;cursor:default;
+    font-family:'Consolas','SF Mono','Courier New',monospace;color:var(--ink);}
+  canvas{position:fixed;inset:0;z-index:0;}
+  .scan{position:fixed;inset:0;z-index:2;pointer-events:none;
+    background:repeating-linear-gradient(0deg,rgba(56,230,255,.03) 0 1px,transparent 1px 3px);opacity:.5;}
+
+  /* ---------- boot ---------- */
+  #boot{position:fixed;inset:0;z-index:60;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:26px;transition:opacity .9s ease;}
+  #boot.done{opacity:0;pointer-events:none;}
+  #btitle{font-size:clamp(40px,9vw,96px);font-weight:700;letter-spacing:18px;color:#eaffff;
+    text-shadow:0 0 30px var(--cy2);opacity:0;transform:scale(.9);}
+  #btitle.show{animation:flare 1s ease forwards;}
+  @keyframes flare{0%{opacity:0;transform:scale(.9);letter-spacing:40px;filter:blur(6px);}
+    60%{opacity:1;filter:blur(0);}100%{opacity:1;transform:scale(1);letter-spacing:18px;}}
+  #diag{width:min(440px,84vw);font-size:12.5px;letter-spacing:1px;min-height:150px;}
+  #diag .l{display:flex;justify-content:space-between;color:var(--dim);opacity:0;animation:din .3s forwards;}
+  #diag .l b{color:var(--ink);font-weight:400;}
+  #diag .l .ok{color:var(--ok);text-shadow:0 0 8px rgba(94,242,160,.5);}
+  @keyframes din{to{opacity:1;}}
+  #bnom{font-size:13px;letter-spacing:6px;color:var(--ok);opacity:0;text-shadow:0 0 12px rgba(94,242,160,.6);}
+  #bnom.show{animation:din .5s forwards;}
+
+  /* ---------- hub ---------- */
+  #hub{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;opacity:0;transition:opacity 1s ease .2s;pointer-events:none;}
+  #hub.show{opacity:1;pointer-events:auto;}
+  #top{display:flex;justify-content:space-between;align-items:center;padding:22px 30px;font-size:12px;letter-spacing:2px;color:var(--dim);}
+  #top .brand{font-size:16px;letter-spacing:10px;color:#eaffff;text-shadow:0 0 12px var(--cy2);}
+  #top .r{display:flex;gap:22px;align-items:center;}
+  #clk{font-size:15px;color:var(--ink);letter-spacing:2px;font-variant-numeric:tabular-nums;}
+  .pill{border:1px solid var(--cy2);color:var(--cy);border-radius:20px;padding:4px 12px;letter-spacing:2px;text-shadow:0 0 8px var(--cy2);}
+  .pill.on{border-color:var(--ok);color:var(--ok);text-shadow:0 0 8px rgba(94,242,160,.5);}
+
+  #grid{flex:1;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));grid-auto-rows:minmax(112px,auto);gap:15px;padding:8px 34px 24px;
+    max-width:1160px;margin:0 auto;width:100%;align-content:center;overflow-y:auto;}
+  .tile{position:relative;border:1px solid rgba(56,230,255,.3);border-radius:15px;background:rgba(6,16,28,.62);
+    padding:16px 18px;display:flex;flex-direction:column;justify-content:space-between;gap:10px;cursor:pointer;
+    text-decoration:none;color:inherit;overflow:hidden;transition:transform .16s,background .16s,box-shadow .16s,border-color .16s;
+    box-shadow:inset 0 0 50px rgba(10,157,255,.05);opacity:0;transform:translateY(16px);}
+  #hub.show .tile{animation:tin .6s ease forwards;}
+  #hub.show .tile:nth-child(1){animation-delay:.15s} #hub.show .tile:nth-child(2){animation-delay:.28s}
+  #hub.show .tile:nth-child(3){animation-delay:.36s} #hub.show .tile:nth-child(4){animation-delay:.46s}
+  #hub.show .tile:nth-child(5){animation-delay:.56s} #hub.show .tile:nth-child(6){animation-delay:.66s}
+  #hub.show .tile:nth-child(7){animation-delay:.76s} #hub.show .tile:nth-child(8){animation-delay:.86s}
+  @keyframes tin{to{opacity:1;transform:translateY(0);}}
+  .tile:hover{transform:translateY(-4px);background:rgba(56,230,255,.1);border-color:var(--cy);
+    box-shadow:inset 0 0 60px rgba(56,230,255,.1),0 0 30px rgba(56,230,255,.18);}
+  .tile .ic{font-size:34px;filter:drop-shadow(0 0 12px var(--cy2));}
+  .tile .nm{font-size:18px;letter-spacing:3px;color:#eaffff;text-shadow:0 0 10px var(--cy2);}
+  .tile .ds{font-size:12px;color:#9fd4ee;letter-spacing:.5px;line-height:1.45;max-width:40ch;}
+  .tile .go{position:absolute;top:14px;right:16px;font-size:11px;letter-spacing:2px;color:var(--dim);}
+  .tile:hover .go{color:var(--cy);}
+  #foot{text-align:center;padding:0 0 20px;font-size:11px;letter-spacing:2px;color:var(--dim);}
+  @media(max-width:720px){#grid{grid-template-columns:1fr;gap:14px;padding:8px 20px 30px;}.tile{padding:20px;}}
+</style>
+<script src="/static/identity.js"></script>
+<script src="/static/nowplaying.js"></script>
+</head>
+<body>
+<canvas id="bg"></canvas>
+<div class="scan"></div>
+
+<div id="boot">
+  <div id="btitle" class="ident-name">RENCORA</div>
+  <div id="diag"></div>
+  <div id="bnom">ALL SYSTEMS NOMINAL</div>
+</div>
+
+<div id="hub">
+  <div id="top">
+    <span class="brand ident-name">RENCORA</span>
+    <div class="r"><span id="clk">--:--:--</span><span class="pill" id="assist">STANDBY</span><span class="pill" id="link">UPLINK —</span></div>
+  </div>
+  <div id="grid">
+    <a class="tile" href="/desk"><span class="go">ÖFFNEN →</span><div class="ic">🖐️</div>
+      <div><div class="nm">TISCH</div><div class="ds">Handsteuerung + Widgets (Uhr, Timer, Notiz, Rechner), Kreis-Menü und „Was siehst du".</div></div></a>
+    <a class="tile" href="/stage"><span class="go">ÖFFNEN →</span><div class="ic">📺</div>
+      <div><div class="nm">LEINWAND</div><div class="ds">Große Anzeige: Uhr, Systemstatus und der Live-Feed von Rencora.</div></div></a>
+    <a class="tile" href="/holo3d"><span class="go">ÖFFNEN →</span><div class="ic">🧊</div>
+      <div><div class="nm">3D-KONTROLLE</div><div class="ds">Hologramme mit den Händen greifen, drehen, skalieren — STL laden &amp; Maße messen.</div></div></a>
+    <a class="tile" href="/holo"><span class="go">ÖFFNEN →</span><div class="ic">🎛️</div>
+      <div><div class="nm">PANEL</div><div class="ds">Kompakte Hologramm-Konsole mit Chat, Sprache und Gesten.</div></div></a>
+    <a class="tile" href="/wall"><span class="go">ÖFFNEN →</span><div class="ic">🌐</div>
+      <div><div class="nm">INFO-WALL</div><div class="ds">Wetter, Nachrichten, Aufgaben und Karte als Holo-Wand-Display.</div></div></a>
+    <a class="tile" href="/globe"><span class="go">ÖFFNEN →</span><div class="ic">🛰️</div>
+      <div><div class="nm">GLOBUS</div><div class="ds">3D-Satellitenglobus — zu jedem Ort fliegen, zoomen, drehen. Auch per Sprache.</div></div></a>
+    <a class="tile" href="/brain"><span class="go">ÖFFNEN →</span><div class="ic">🧠</div>
+      <div><div class="nm">BRAIN</div><div class="ds">Dateien, Code, GitHub &amp; Claude-Daten als vernetzte Neuronen.</div></div></a>
+    <a class="tile" href="/advisor"><span class="go">ÖFFNEN →</span><div class="ic">📄</div>
+      <div><div class="nm">ADVISOR</div><div class="ds">Dokument per Kamera einlesen — was ausfüllen, welche Fristen.</div></div></a>
+    <a class="tile" href="/tv"><span class="go">ÖFFNEN →</span><div class="ic">📡</div>
+      <div><div class="nm">FIRE TV</div><div class="ds">Großes HUD für den Fernseher / Fire TV im WLAN.</div></div></a>
+    <a class="tile" href="/remote"><span class="go">ÖFFNEN →</span><div class="ic">📱</div>
+      <div><div class="nm">FERNBEDIENUNG</div><div class="ds">Vom Handy/PC steuern: Befehle, Sprache, Musik &amp; Film.</div></div></a>
+    <a class="tile" href="/settings"><span class="go">ÖFFNEN →</span><div class="ic">⚙️</div>
+      <div><div class="nm">EINSTELLUNGEN</div><div class="ds">Grok, Interessen, Brain, Drucker, Name &amp; Key.</div></div></a>
+    <a class="tile" href="/status"><span class="go">ÖFFNEN →</span><div class="ic">📊</div>
+      <div><div class="nm">STATUS</div><div class="ds">Live-Diagnose: Gemini, Grok/Groq, WLAN und Plugins.</div></div></a>
+  </div>
+  <div id="foot">RENCORA HOLOGRAPHIC OS · <a href="/desk?cal=1" style="color:var(--cy);text-decoration:none">⚙ Tisch kalibrieren</a> · <a href="#" id="liteToggle" style="color:var(--cy);text-decoration:none">⚡ Sparmodus</a> · Vollbild F11</div>
+</div>
+
+<script>
+/* Rencora Home — cinematic boot + surface launcher. Engine Mark-LI/FatihMakes CC BY-NC. */
+
+// ---- canvas reactor with charge-up ----
+const bg=document.getElementById('bg'),bx=bg.getContext('2d');
+let W,H,DPR=Math.min(devicePixelRatio||1,2);
+function resize(){W=innerWidth;H=innerHeight;bg.width=W*DPR;bg.height=H*DPR;bg.style.width=W+'px';bg.style.height=H+'px';bx.setTransform(DPR,0,0,DPR,0,0);}
+addEventListener('resize',resize);resize();
+function gArc(x,y,r,a0,a1,c,w,b){bx.strokeStyle=c;bx.lineWidth=w;bx.shadowColor=c;bx.shadowBlur=b;bx.beginPath();bx.arc(x,y,r,a0,a1);bx.stroke();}
+function gDot(x,y,r,c,b){bx.fillStyle=c;bx.shadowColor=c;bx.shadowBlur=b;bx.beginPath();bx.arc(x,y,r,0,7);bx.fill();}
+const parts=Array.from({length:70},()=>({x:Math.random(),y:Math.random(),s:Math.random()*1.3+.3}));
+let charge=0, t0=performance.now();          // 0..1 boot charge
+const FRAME_MS=(localStorage.getItem('rencora_lite')==='1'||new URLSearchParams(location.search).has('lite'))?55:33;
+let lastFrame=0;
+function loop(now){
+  if(document.hidden){ setTimeout(()=>requestAnimationFrame(loop),250); return; }
+  if(now-lastFrame<FRAME_MS){ requestAnimationFrame(loop); return; } lastFrame=now;
+  const t=(now-t0)*0.001;
+  bx.setTransform(DPR,0,0,DPR,0,0);bx.globalCompositeOperation='source-over';bx.fillStyle='rgba(2,6,12,0.42)';bx.fillRect(0,0,W,H);
+  bx.globalCompositeOperation='lighter';bx.lineCap='round';
+  const hubK=hubShown?0.5:1;   // shrink + dim the reactor once the hub is up so tile text stays readable
+  const cx=W/2, cy=H*0.5, base=Math.min(W,H)*0.2*(0.35+0.65*charge)*hubK;
+  const _id=(window.IDENT&&window.IDENT.cur)||{cy:'#38e6ff',cy2:'#0a9dff'};
+  const CY=_id.cy,CY2=_id.cy2, bri=(0.3+0.7*charge)*(hubShown?0.45:1);
+  for(const p of parts){const x=(p.x*W+t*6*p.s)%W;gDot(x,p.y*H,p.s*.6,'#0a9dff',5);}
+  const pulse=0.85+Math.sin(t*3)*0.12;
+  gDot(cx,cy,base*0.14*pulse*bri,CY,42*bri);gDot(cx,cy,base*0.075*pulse,'#eafcff',26*bri);
+  for(let k=1;k<=3;k++)gArc(cx,cy,base*(0.26+k*0.11),0,7*charge,CY2,1.5,12*bri);
+  for(let i=0;i<8;i++){const a0=t*(0.5+2*(1-charge))+i/8*7;gArc(cx,cy,base*0.6,a0,a0+0.34*charge,CY,6*bri,16);}
+  for(let i=0;i<16;i++){const a0=-t*0.8+i/16*7;gArc(cx,cy,base*0.78,a0,a0+0.16*charge,CY2,3,12);}
+  bx.globalAlpha=charge; for(let i=0;i<72;i++){const a=i/72*7,r0=(i%6===0)?base*0.9:base*0.95;
+    bx.strokeStyle=CY;bx.lineWidth=1;bx.shadowBlur=4;bx.shadowColor=CY;
+    bx.beginPath();bx.moveTo(cx+Math.cos(a)*r0,cy+Math.sin(a)*r0);bx.lineTo(cx+Math.cos(a)*base,cy+Math.sin(a)*base);bx.stroke();}
+  bx.globalAlpha=1;bx.shadowBlur=0;
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+// ---- boot sequence ----
+let hubShown=false;
+const DIAG=[['ARC REACTOR','ONLINE'],['NEURAL CORE LINK','OK'],['GESTURE ENGINE','OK'],
+  ['PROJECTION SURFACE','OK'],['PRINTER SUBSYSTEM','OK'],['UPLINK CHANNEL','SECURE']];
+const diagEl=document.getElementById('diag');
+function chargeTo(target,ms){const s=charge,st=performance.now();
+  (function step(n){const k=Math.min(1,(n-st)/ms);charge=s+(target-s)*(k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2);
+    if(k<1)requestAnimationFrame(step);})(st);}
+function boot(){
+  chargeTo(1,2600);
+  let i=0;
+  const iv=setInterval(()=>{ if(i>=DIAG.length){clearInterval(iv);
+      document.getElementById('btitle').classList.add('show');
+      setTimeout(()=>document.getElementById('bnom').classList.add('show'),700);
+      setTimeout(revealHub,1700); return; }
+    const [name,ok]=DIAG[i++]; const l=document.createElement('div'); l.className='l';
+    l.innerHTML=`<b>${name}</b><span class="ok">${ok}</span>`; diagEl.appendChild(l);
+  },360);
+}
+function revealHub(){ hubShown=true; document.getElementById('boot').classList.add('done');
+  document.getElementById('hub').classList.add('show'); }
+setTimeout(boot,400);
+// allow skipping the intro
+addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){if(!hubShown){charge=1;revealHub();}}});
+addEventListener('click',()=>{if(!hubShown){charge=1;revealHub();}});
+
+// ---- clock + uplink ----
+function clk(){const d=new Date(),p=n=>String(n).padStart(2,'0');
+  document.getElementById('clk').textContent=`${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;}
+clk();setInterval(clk,1000);
+// Sparmodus (low-end / no-GPU) toggle — read by all surfaces
+const liteEl=document.getElementById('liteToggle');
+function paintLite(){ const on=localStorage.getItem('rencora_lite')==='1';
+  liteEl.textContent=on?'⚡ Sparmodus: AN':'⚡ Sparmodus'; liteEl.style.opacity=on?1:0.75; }
+paintLite();
+liteEl.addEventListener('click',e=>{ e.preventDefault();
+  const on=localStorage.getItem('rencora_lite')==='1';
+  localStorage.setItem('rencora_lite',on?'0':'1'); paintLite(); });
+const TOKEN=sessionStorage.getItem('jarvis_token')||'';
+if(!TOKEN){ document.getElementById('link').textContent='UPLINK DEMO'; }
+else{ const p=location.protocol==='https:'?'wss':'ws';
+  try{ const ws=new WebSocket(`${p}://${location.host}/ws?token=${encodeURIComponent(TOKEN)}`);
+    ws.onopen=()=>{const e=document.getElementById('link');e.textContent='UPLINK LIVE';e.classList.add('on');};
+    ws.onclose=()=>document.getElementById('link').textContent='UPLINK LOST';
+    ws.onmessage=ev=>{let m;try{m=JSON.parse(ev.data);}catch{return;} if(m.type==='status'){const a=document.getElementById('assist');
+      a.textContent=m.state==='active'?'ACTIVE':'STANDBY';a.classList.toggle('on',m.state==='active');}};
+  }catch{} }
+</script>
+</body>
+</html>

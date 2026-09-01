@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RENCORA DESK</title>
+<style>
+  :root{ --cy:#38e6ff; --cy2:#0a9dff; --dim:#0b5f8f; --bg:#02060c; --ok:#5ef2a0; --warn:#ffc46b; }
+  *{box-sizing:border-box;} html,body{margin:0;height:100%;background:var(--bg);overflow:hidden;
+    font-family:'Consolas','SF Mono','Courier New',monospace;color:#cfeeff;cursor:none;user-select:none;}
+  canvas{position:fixed;inset:0;} #hand{z-index:40;pointer-events:none;}
+  #cam{position:fixed;bottom:10px;right:10px;width:150px;height:112px;object-fit:cover;transform:scaleX(-1);
+    border:1px solid var(--dim);border-radius:7px;opacity:.4;z-index:30;background:#010309;}
+  #hdr{position:fixed;top:12px;left:0;right:0;text-align:center;z-index:20;pointer-events:none;}
+  #hdr .brand{font-size:20px;letter-spacing:11px;color:#eaffff;text-shadow:0 0 14px var(--cy2);}
+  #hdr .sub{font-size:10px;letter-spacing:4px;color:var(--dim);margin-top:2px;}
+  /* desk tiles */
+  #tiles{position:fixed;inset:0;z-index:10;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);
+    gap:20px;padding:88px 60px 70px;}
+  .tile{border:1px solid rgba(56,230,255,.3);border-radius:16px;background:rgba(8,26,42,.32);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+    box-shadow:inset 0 0 40px rgba(10,157,255,.06),0 0 18px rgba(10,157,255,.08);transition:transform .12s,background .12s,box-shadow .12s;}
+  .tile .ic{font-size:44px;filter:drop-shadow(0 0 10px var(--cy2));}
+  .tile .lb{font-size:15px;letter-spacing:2px;color:#dff6ff;text-shadow:0 0 8px var(--cy2);}
+  .tile.hot{background:rgba(56,230,255,.16);transform:scale(1.03);box-shadow:inset 0 0 40px rgba(56,230,255,.14),0 0 26px var(--cy);}
+  .tile.fire{background:var(--cy2);}
+  .tile .lb small{display:block;font-size:10px;letter-spacing:1px;color:var(--dim);margin-top:3px;}
+  /* cursor */
+  #cur{position:fixed;z-index:60;width:30px;height:30px;margin:-15px 0 0 -15px;pointer-events:none;opacity:0;
+    border:2px solid var(--cy);border-radius:50%;box-shadow:0 0 16px var(--cy);transition:opacity .2s;}
+  #cur::after{content:'';position:absolute;inset:11px;border-radius:50%;background:var(--cy);box-shadow:0 0 8px var(--cy);}
+  #cur.pinch{border-color:#eaffff;} #cur .ring{position:absolute;inset:-6px;border-radius:50%;border:2px solid var(--cy);
+    clip-path:inset(0 0 0 0);}
+  #cur svg{position:absolute;inset:-8px;width:46px;height:46px;transform:rotate(-90deg);opacity:0;}
+  #cur.dwell svg{opacity:1;}
+  /* status chip */
+  #status{position:fixed;left:12px;top:12px;z-index:20;font-size:11px;letter-spacing:1px;color:var(--dim);
+    background:rgba(8,26,42,.4);border:1px solid rgba(56,230,255,.2);border-radius:8px;padding:7px 11px;line-height:1.7;}
+  #status b{color:#eaffff;font-weight:400;} .s-ok{color:var(--ok)!important;} .s-warn{color:var(--warn)!important;}
+  #recal{position:fixed;right:12px;top:12px;z-index:25;background:rgba(10,157,255,.16);border:1px solid var(--cy2);
+    color:#eaffff;font-family:inherit;font-size:11px;letter-spacing:2px;padding:8px 13px;border-radius:8px;cursor:pointer;pointer-events:auto;}
+  #recal:hover{background:var(--cy2);color:#02121f;}
+  /* calibration overlay */
+  #cal{position:fixed;inset:0;z-index:80;background:rgba(2,6,12,.92);display:none;}
+  #cal.on{display:block;}
+  #cal .msg{position:absolute;top:38%;left:0;right:0;text-align:center;}
+  #cal .msg h2{font-size:26px;letter-spacing:6px;color:#eaffff;text-shadow:0 0 16px var(--cy2);margin:0 0 8px;}
+  #cal .msg p{font-size:14px;letter-spacing:1px;color:#9fd4ee;margin:4px 0;}
+  #cal .msg .step{font-size:12px;color:var(--dim);letter-spacing:3px;margin-top:14px;}
+  .tgt{position:absolute;width:54px;height:54px;margin:-27px 0 0 -27px;border-radius:50%;border:2px solid var(--dim);
+    display:flex;align-items:center;justify-content:center;}
+  .tgt::before{content:'';width:10px;height:10px;border-radius:50%;background:var(--dim);}
+  .tgt.active{border-color:var(--cy);box-shadow:0 0 24px var(--cy);animation:pulse 1.1s infinite;}
+  .tgt.active::before{background:var(--cy);box-shadow:0 0 12px var(--cy);}
+  .tgt.done{border-color:var(--ok);} .tgt.done::before{background:var(--ok);}
+  @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}
+  #boot{position:fixed;inset:0;z-index:100;background:var(--bg);display:flex;align-items:center;justify-content:center;
+    flex-direction:column;gap:12px;transition:opacity .7s;} #boot .b1{font-size:26px;letter-spacing:14px;color:#eaffff;text-shadow:0 0 18px var(--cy2);}
+  #boot .b2{font-size:11px;letter-spacing:5px;color:var(--dim);}
+</style>
+<script src="/static/identity.js"></script>
+<script src="/static/vision.js"></script>
+<script src="/static/widgets.js"></script>
+<script src="/static/radial.js"></script>
+<script src="/static/face.js"></script>
+</head>
+<body>
+<canvas id="hand"></canvas>
+<video id="cam" autoplay playsinline muted></video>
+
+<div id="hdr"><div class="brand">R E N C O R A</div><div class="sub">DESK CONTROL SURFACE</div></div>
+<div id="status">GESTURE <b id="s-gest">…</b><br>CALIB <b id="s-cal">—</b> · UPLINK <b id="s-link">—</b></div>
+<button id="recal">◇ KALIBRIEREN</button>
+
+<div id="tiles"></div>
+
+<div id="cur"><svg viewBox="0 0 46 46"><circle cx="23" cy="23" r="20" fill="none" stroke="#38e6ff" stroke-width="3"
+  stroke-dasharray="126" stroke-dashoffset="126" id="cur-prog"/></svg></div>
+
+<div id="cal">
+  <div class="msg"><h2 id="cal-h">KALIBRIERUNG</h2><p id="cal-p">Tippe mit dem Zeigefinger den leuchtenden Punkt auf dem Tisch an und pinche kurz.</p><div class="step" id="cal-step">PUNKT 1 / 4</div></div>
+</div>
+
+<div id="boot"><div class="b1">RENCORA</div><div class="b2" id="bootTxt">DESK SURFACE INIT…</div></div>
+
+<script type="module">
+/* Rencora Desk — Phase 1: projector↔desk calibration (homography) so a finger on the
+   physical desk maps exactly onto the projected UI. One webcam. Click = pinch/dwell.
+   Backend: Mark-LI dashboard (token/ws/command). Engine Mark-LI/FatihMakes CC BY-NC. */
+
+// ============ Homography (4-point) ============
+// Solve 8x8 linear system (Gaussian elimination, partial pivot).
+function solve(A,b){ const n=b.length; const M=A.map((r,i)=>[...r,b[i]]);
+  for(let c=0;c<n;c++){ let p=c; for(let r=c+1;r<n;r++) if(Math.abs(M[r][c])>Math.abs(M[p][c])) p=r;
+    [M[c],M[p]]=[M[p],M[c]]; const pv=M[c][c]; if(Math.abs(pv)<1e-12) return null;
+    for(let r=0;r<n;r++){ if(r===c) continue; const f=M[r][c]/pv;
+      for(let k=c;k<=n;k++) M[r][k]-=f*M[c][k]; } }
+  return M.map((r,i)=>r[n]/r[i]); }
+// src[4]={x,y} (camera-normalized), dst[4]={x,y} (screen px) -> 3x3 H (row-major, h8=1)
+function computeHomography(src,dst){ const A=[],b=[];
+  for(let i=0;i<4;i++){ const {x,y}=src[i], X=dst[i].x, Y=dst[i].y;
+    A.push([x,y,1,0,0,0,-X*x,-X*y]); b.push(X);
+    A.push([0,0,0,x,y,1,-Y*x,-Y*y]); b.push(Y); }
+  const h=solve(A,b); if(!h) return null; return [h[0],h[1],h[2],h[3],h[4],h[5],h[6],h[7],1]; }
+function applyH(H,p){ const x=p.x,y=p.y; const w=H[6]*x+H[7]*y+H[8];
+  return { x:(H[0]*x+H[1]*y+H[2])/w, y:(H[3]*x+H[4]*y+H[5])/w }; }
+window.RENCORA={computeHomography,applyH,solve};   // exposed for testing
+
+let H=null;
+try{ const s=localStorage.getItem('rencora_homography'); if(s){ H=JSON.parse(s); } }catch{}
+
+// ============ Desk tiles ============
+const TILES=[
+  {ic:'🌐',lb:'Browser',cmd:'öffne den Browser'},
+  {ic:'🎵',lb:'Musik',cmd:'spiele Musik'},
+  {ic:'🔊',lb:'Lauter',cmd:'erhöhe die Lautstärke'},
+  {ic:'💡',lb:'Licht',cmd:'schalte das Licht'},
+  {ic:'🖨️',lb:'Drucker',cmd:'zeige den Druckerstatus'},
+  {ic:'🔉',lb:'Leiser',cmd:'verringere die Lautstärke'},
+  {ic:'📅',lb:'Termine',cmd:'was steht heute an'},
+  {ic:'🎙️',lb:'Sprechen',act:'voice'},
+  {ic:'⚡',lb:'Wake',act:'wake'},
+];
+const tilesEl=document.getElementById('tiles');
+TILES.forEach((t,i)=>{ const d=document.createElement('div'); d.className='tile'; d.dataset.i=i;
+  d.innerHTML=`<div class="ic">${t.ic}</div><div class="lb">${t.lb}</div>`; tilesEl.appendChild(d); });
+function fireTile(i){ const t=TILES[i]; const el=tilesEl.children[i];
+  el.classList.add('fire'); setTimeout(()=>el.classList.remove('fire'),260);
+  if(t.act==='voice') toggleVoice(); else if(t.act==='wake') sendWake(); else sendCommand(t.cmd); }
+
+// ============ Backend ============
+const TOKEN=sessionStorage.getItem('jarvis_token')||''; let DEMO=!TOKEN, ws=null;
+function setLink(t,cls){const e=document.getElementById('s-link');e.textContent=t;e.className=cls||'';}
+function connect(){ if(DEMO){ setLink('DEMO'); return; }
+  const p=location.protocol==='https:'?'wss':'ws';
+  ws=new WebSocket(`${p}://${location.host}/ws?token=${encodeURIComponent(TOKEN)}`);
+  ws.onopen=()=>setLink('LIVE','s-ok'); ws.onclose=()=>setLink('LOST','s-warn'); ws.onerror=()=>setLink('ERR','s-warn'); }
+function sendCommand(t){ if(DEMO){toast('DEMO: '+t);return;}
+  fetch('/api/command',{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${TOKEN}`},body:JSON.stringify({text:t})}).catch(()=>{}); toast(t); }
+function sendWake(){ if(DEMO){toast('DEMO: wake');return;} fetch('/api/wake',{method:'POST',headers:{'Authorization':`Bearer ${TOKEN}`}}).catch(()=>{}); toast('Wake'); }
+let voiceOn=false,vWs=null,aCtx=null,micStream=null,node=null;
+async function toggleVoice(){ if(voiceOn){voiceOn=false;try{node&&node.disconnect();}catch{}try{micStream&&micStream.getTracks().forEach(t=>t.stop());}catch{}try{aCtx&&aCtx.close();}catch{}try{vWs&&vWs.close();}catch{}vWs=null;toast('Mikro aus');return;}
+  if(DEMO){toast('DEMO: Sprachmodus');return;}
+  try{ micStream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true}});
+    aCtx=new(window.AudioContext||window.webkitAudioContext)({sampleRate:16000}); const src=aCtx.createMediaStreamSource(micStream); node=aCtx.createScriptProcessor(2048,1,1);
+    const p=location.protocol==='https:'?'wss':'ws'; vWs=new WebSocket(`${p}://${location.host}/ws/phone-audio?token=${encodeURIComponent(TOKEN)}`); vWs.binaryType='arraybuffer';
+    node.onaudioprocess=ev=>{if(!vWs||vWs.readyState!==1)return;const f=ev.inputBuffer.getChannelData(0);const b=new Int16Array(f.length);for(let i=0;i<f.length;i++){let s=Math.max(-1,Math.min(1,f[i]));b[i]=s<0?s*0x8000:s*0x7fff;}vWs.send(b.buffer);};
+    src.connect(node);node.connect(aCtx.destination); voiceOn=true; toast('Mikro an — sprich'); }catch(e){toast('Mikro-Fehler');} }
+let _tt; function toast(m){ const s=document.getElementById('status'); s.dataset.t=m; }
+
+// ============ Pointer (hand OR mouse) ============
+const cur=document.getElementById('cur'), prog=document.getElementById('cur-prog');
+const P={x:innerWidth/2,y:innerHeight/2,present:false,pinch:false};
+let lastPinch=false, dwellEl=null, dwellStart=0;
+const DWELL_MS=850;
+function updateCursor(){ cur.style.opacity=P.present?1:0; cur.style.left=P.x+'px'; cur.style.top=P.y+'px'; cur.classList.toggle('pinch',P.pinch);
+  const el=document.elementFromPoint(P.x,P.y); const tile=el&&el.closest? el.closest('.tile'):null;
+  document.querySelectorAll('.tile.hot').forEach(t=>{ if(t!==tile) t.classList.remove('hot'); });
+  if(tile) tile.classList.add('hot');
+  // pinch = immediate click (edge)
+  if(P.pinch&&!lastPinch){ if(calOn) calPinch(); else if(tile) fireTile(+tile.dataset.i); }
+  lastPinch=P.pinch;
+  // dwell = click by holding still over a tile
+  if(!calOn && tile && !P.pinch){ if(tile===dwellEl){ const f=Math.min(1,(performance.now()-dwellStart)/DWELL_MS);
+      cur.classList.add('dwell'); prog.style.strokeDashoffset=126*(1-f);
+      if(f>=1){ fireTile(+tile.dataset.i); dwellEl=null; cur.classList.remove('dwell'); } }
+    else { dwellEl=tile; dwellStart=performance.now(); prog.style.strokeDashoffset=126; } }
+  else { dwellEl=null; cur.classList.remove('dwell'); }
+  // status toast
+  const s=document.getElementById('status'); if(s.dataset.t){ /* toast shown via title */ }
+}
+// mouse fallback
+addEventListener('mousemove',e=>{ if(handsActive)return; P.present=true;P.x=e.clientX;P.y=e.clientY; });
+addEventListener('mousedown',()=>{ if(handsActive)return; P.pinch=true; });
+addEventListener('mouseup',()=>{ if(handsActive)return; P.pinch=false; });
+setInterval(()=>{ if(!handsActive) updateCursor(); },30);
+
+// ============ Calibration ============
+const calEl=document.getElementById('cal');
+const MARGIN=0.12;
+function targets(){ const mx=innerWidth*MARGIN, my=innerHeight*MARGIN;
+  return [ {x:mx,y:my}, {x:innerWidth-mx,y:my}, {x:innerWidth-mx,y:innerHeight-my}, {x:mx,y:innerHeight-my} ]; }
+let calOn=false, calIdx=0, calSrc=[], calDst=[], calSamples=[];
+function startCal(){ calOn=true; calIdx=0; calSrc=[]; calDst=calDst=targets(); calSamples=[]; calEl.classList.add('on');
+  document.getElementById('s-cal').textContent='LÄUFT'; renderTargets(); }
+function renderTargets(){ calEl.querySelectorAll('.tgt').forEach(t=>t.remove());
+  const T=targets(); T.forEach((p,i)=>{ const d=document.createElement('div'); d.className='tgt'+(i<calIdx?' done':'')+(i===calIdx?' active':'');
+    d.style.left=p.x+'px'; d.style.top=p.y+'px'; calEl.appendChild(d); });
+  document.getElementById('cal-step').textContent=`PUNKT ${calIdx+1} / 4`; }
+function calPinch(){ // capture averaged camera fingertip for current target
+  if(!calSamples.length){ return; } const avg=calSamples.reduce((a,c)=>({x:a.x+c.x,y:a.y+c.y}),{x:0,y:0});
+  const src={x:avg.x/calSamples.length,y:avg.y/calSamples.length};
+  calSrc[calIdx]=src; calSamples=[]; calIdx++;
+  if(calIdx>=4){ finishCal(); } else renderTargets(); }
+function finishCal(){ const dst=targets(); const h=computeHomography(calSrc,dst);
+  if(h){ H=h; try{localStorage.setItem('rencora_homography',JSON.stringify(h));}catch{}
+    document.getElementById('s-cal').innerHTML='<span class="s-ok">OK</span>'; }
+  else document.getElementById('s-cal').innerHTML='<span class="s-warn">FEHLER</span>';
+  calOn=false; calEl.classList.remove('on'); }
+document.getElementById('recal').addEventListener('click',startCal);
+document.getElementById('s-cal').textContent = H?'OK':'—';
+if(H) document.getElementById('s-cal').className='s-ok';
+
+// ============ Hand tracking ============
+const cam=document.getElementById('cam'), hc=document.getElementById('hand'), hx=hc.getContext('2d');
+let handsActive=false, landmarker=null;
+// Low-end mode: no GPU needed, less jitter, lower load. ?lite=1 or auto on CPU fallback.
+let LITE = new URLSearchParams(location.search).has('lite') || localStorage.getItem('rencora_lite')==='1';
+const CONN=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+function d2(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}
+function fitCanvas(){ const DPR=LITE?1:Math.min(devicePixelRatio,2); hc.width=innerWidth*DPR;hc.height=innerHeight*DPR;hc.style.width=innerWidth+'px';hc.style.height=innerHeight+'px'; hx.setTransform(DPR,0,0,DPR,0,0);}
+addEventListener('resize',()=>{fitCanvas(); if(calOn)renderTargets();}); fitCanvas();
+
+// One-Euro filter — smooths the fingertip (kills jitter without adding lag).
+function OneEuro(mc,beta,dc){ let xp=null,dxp=0,tp=null; const al=(c,dt)=>{const r=2*Math.PI*c*dt;return r/(r+1);};
+  return (x,t)=>{ if(xp===null){xp=x;tp=t;return x;} const dt=Math.max(1e-3,(t-tp)/1000);
+    const dx=(x-xp)/dt; const ad=al(dc,dt); const dxh=ad*dx+(1-ad)*dxp;
+    const c=mc+beta*Math.abs(dxh); const a=al(c,dt); const xh=a*x+(1-a)*xp; xp=xh;dxp=dxh;tp=t; return xh; }; }
+const fx=OneEuro(1.6,0.02,1.0), fy=OneEuro(1.6,0.02,1.0);
+let pinchState=false;                                  // hysteresis so pinch doesn't flicker
+function pinchOf(lm){ const sc=d2(lm[0],lm[9])||0.1; const r=d2(lm[4],lm[8])/sc;
+  if(pinchState){ if(r>0.70) pinchState=false; } else { if(r<0.48) pinchState=true; } return pinchState; }
+
+async function makeLM(V,files,delegate){ return V.HandLandmarker.createFromOptions(files,
+  {baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',delegate},numHands:1,runningMode:'VIDEO'}); }
+async function initHands(){ const gs=document.getElementById('s-gest');
+  const w=LITE?480:640, h=LITE?360:480;
+  try{ const s=await navigator.mediaDevices.getUserMedia({video:{width:w,height:h,facingMode:'user'}}); cam.srcObject=s; await cam.play(); }
+  catch(e){ gs.textContent='NO CAM'; gs.className='s-warn'; return; }
+  let V,files; try{ V=await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs');
+    files=await V.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'); }
+  catch(e){ gs.textContent='LOAD FAIL'; gs.className='s-warn'; return; }
+  try{ landmarker=await makeLM(V,files,'GPU'); gs.textContent='TRACKING'; }
+  catch(e){ // no usable GPU -> CPU + lite mode
+    try{ LITE=true; fitCanvas(); landmarker=await makeLM(V,files,'CPU'); gs.textContent='TRACKING (CPU)'; }
+    catch(e2){ gs.textContent='FAIL'; gs.className='s-warn'; console.warn(e2); return; } }
+  gs.className='s-ok'; handsActive=true; if(!H){ toast('Bitte kalibrieren'); }
+  requestAnimationFrame(handLoop);
+}
+
+let lastDet=0, lastHands=[];
+function handLoop(now){ if(!handsActive)return;
+  const DET_MS = LITE?60:33;                            // throttle detection (esp. on CPU)
+  if(now-lastDet>=DET_MS){ lastDet=now; let res=null; try{res=landmarker.detectForVideo(cam,now);}catch{}
+    lastHands=res&&res.landmarks?res.landmarks:[]; }
+  const hands=lastHands;
+  hx.clearRect(0,0,innerWidth,innerHeight);
+  if(hands.length){ const lm=hands[0];
+    const tip={x:fx(lm[8].x,now), y:fy(lm[8].y,now)};   // SMOOTHED fingertip
+    hx.globalCompositeOperation='lighter'; hx.strokeStyle='#38e6ff';hx.lineWidth=2;hx.shadowColor='#0a9dff';hx.shadowBlur=LITE?0:8;
+    const MX=p=>(1-p.x)*innerWidth, MY=p=>p.y*innerHeight;
+    CONN.forEach(([a,b])=>{hx.beginPath();hx.moveTo(MX(lm[a]),MY(lm[a]));hx.lineTo(MX(lm[b]),MY(lm[b]));hx.stroke();});
+    const pinch=pinchOf(lm);
+    let sp; if(H) sp=applyH(H,tip); else sp={x:(1-tip.x)*innerWidth,y:tip.y*innerHeight};
+    P.present=true; P.x=Math.max(0,Math.min(innerWidth,sp.x)); P.y=Math.max(0,Math.min(innerHeight,sp.y)); P.pinch=pinch;
+    if(calOn){ calSamples.push(tip); if(calSamples.length>12) calSamples.shift(); }
+    updateCursor();
+  } else { P.present=false; P.pinch=false; pinchState=false; if(!calOn) updateCursor(); }
+  requestAnimationFrame(handLoop);
+}
+
+// ============ boot ============
+const bt=['LOADING SURFACE…','LINKING CORE…','READY'];let bi=0;
+const bootI=setInterval(()=>{document.getElementById('bootTxt').textContent=bt[bi++]||'';
+  if(bi>=bt.length){clearInterval(bootI);const b=document.getElementById('boot');b.style.opacity=0;setTimeout(()=>b.remove(),700);}},550);
+connect(); setTimeout(initHands,1100);
+// auto-start calibration when opened as .../desk?cal=1 (from Home "Kalibrieren")
+if(location.search.indexOf('cal=1')>=0) setTimeout(()=>{ try{startCal();}catch{} },1600);
+</script>
+</body>
+</html>

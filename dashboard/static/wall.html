@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RENCORA WALL</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+  :root{ --cy:#b06bff; --cy2:#7a3fe0; --dim:#5a6a80; --bg:#03060d; --panel:rgba(10,18,34,.5);
+         --ok:#5ef2a0; --ink:#e7ecff; }
+  *{box-sizing:border-box;margin:0;}
+  html,body{height:100%;background:var(--bg);color:var(--ink);overflow:hidden;
+    font-family:'Consolas','SF Mono',ui-monospace,monospace;}
+  #bgfx{position:fixed;inset:0;z-index:0;background:
+    radial-gradient(1200px 700px at 80% -10%,rgba(120,90,220,.12),transparent 60%),
+    radial-gradient(900px 600px at 0% 110%,rgba(90,120,220,.10),transparent 60%);}
+  #wrap{position:relative;z-index:1;height:100%;display:flex;flex-direction:column;padding:18px 20px;gap:14px;}
+  header{display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:10px;}
+  .brand{font-size:22px;letter-spacing:12px;color:#fff;text-shadow:0 0 14px var(--cy2);}
+  .sub{font-size:10px;letter-spacing:5px;color:var(--dim);margin-top:3px;}
+  #clock{text-align:right;}
+  #time{font:700 46px/1 ui-monospace,monospace;color:#fff;text-shadow:0 0 18px var(--cy);}
+  #date{font-size:13px;color:var(--dim);letter-spacing:2px;margin-top:4px;}
+  #ticker{display:flex;flex-wrap:wrap;gap:20px;font:600 13px ui-monospace,monospace;color:var(--dim);padding:2px;}
+  #ticker .c{color:var(--ink);} #ticker .up{color:var(--ok);} #ticker .dn{color:#ff6a8a;}
+  #grid{flex:1;display:grid;gap:14px;min-height:0;
+    grid-template-columns:1.1fr 1.4fr 1.1fr;grid-template-rows:1fr 1fr;
+    grid-template-areas:"weather map news" "tasks map news";}
+  .panel{background:var(--panel);border:1px solid rgba(120,120,255,.28);border-radius:14px;
+    padding:14px 16px;overflow:auto;box-shadow:inset 0 0 30px rgba(120,120,255,.05),0 0 22px rgba(0,0,0,.35);
+    -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);display:flex;flex-direction:column;min-height:0;}
+  .ttl{font-size:11px;letter-spacing:4px;color:var(--cy);text-shadow:0 0 8px var(--cy2);margin-bottom:10px;flex:0 0 auto;}
+  #pWeather{grid-area:weather;} #pTasks{grid-area:tasks;} #pNews{grid-area:news;} #pMap{grid-area:map;padding:0;overflow:hidden;position:relative;}
+  /* weather */
+  .wnow{display:flex;align-items:center;gap:14px;}
+  .wicon{font-size:52px;line-height:1;}
+  .wtemp{font:700 44px/1 ui-monospace,monospace;color:#fff;}
+  .wmeta{font-size:12px;color:var(--dim);line-height:1.7;}
+  .wcity{font-size:13px;color:var(--ink);letter-spacing:2px;}
+  .wdays{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;}
+  .wday{flex:1;min-width:64px;text-align:center;background:rgba(120,120,255,.07);border-radius:9px;padding:8px 4px;}
+  .wday .d{font-size:10px;color:var(--dim);letter-spacing:1px;} .wday .i{font-size:22px;margin:3px 0;}
+  .wday .t{font-size:12px;} .wday .t b{color:#fff;}
+  /* news */
+  .nitem{display:flex;gap:10px;align-items:flex-start;padding:8px 6px;border-bottom:1px solid rgba(120,120,255,.12);
+    text-decoration:none;color:var(--ink);border-radius:8px;transition:background .15s;}
+  .nitem:hover{background:rgba(120,120,255,.1);}
+  .nitem:last-child{border-bottom:0;}
+  .nthumb{width:66px;height:50px;object-fit:cover;border-radius:6px;flex:0 0 auto;border:1px solid rgba(120,120,255,.25);background:#0a1424;}
+  .ntext{flex:1;font-size:13px;line-height:1.35;}
+  .nsrc{display:inline-block;font-size:9px;letter-spacing:1px;color:var(--cy);border:1px solid var(--cy);border-radius:5px;padding:1px 5px;margin-right:6px;}
+  .nglobe{display:inline-block;margin-top:4px;font-size:10px;color:var(--ok);border:1px solid var(--ok);border-radius:12px;padding:1px 8px;cursor:pointer;}
+  .nglobe:hover{background:var(--ok);color:#02121f;}
+  .nsum{display:inline-block;margin-top:4px;margin-left:6px;font-size:10px;color:var(--cy);border:1px solid var(--cy);border-radius:12px;padding:1px 8px;cursor:pointer;}
+  .nsum:hover{background:var(--cy);color:#02121f;}
+  #sumbox{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:9998;display:none;
+    max-width:min(600px,90vw);background:rgba(4,10,20,.96);border:1px solid var(--cy);border-radius:14px;
+    padding:20px 22px;color:var(--ink);font:15px/1.6 system-ui;box-shadow:0 0 40px rgba(0,0,0,.6);
+    -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);}
+  #sumbox h4{margin:0 0 10px;color:var(--cy);font-size:13px;letter-spacing:1px;padding-right:20px;}
+  #sumbox .x{position:absolute;top:8px;right:14px;cursor:pointer;color:var(--dim);font-size:20px;}
+  /* tasks */
+  #taskIn{width:100%;background:rgba(0,0,0,.3);border:1px solid rgba(120,120,255,.3);border-radius:8px;
+    color:#fff;font:13px inherit;padding:8px 10px;outline:none;margin-bottom:8px;}
+  #taskList{list-style:none;overflow:auto;}
+  #taskList li{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px;border-bottom:1px solid rgba(120,120,255,.1);}
+  #taskList li.done span{opacity:.45;text-decoration:line-through;}
+  #taskList .cb{cursor:pointer;color:var(--cy);} #taskList .rm{margin-left:auto;cursor:pointer;opacity:.5;}
+  #taskList .rm:hover{opacity:1;color:#ff6a8a;} #taskList span{flex:1;}
+  #map{position:absolute;inset:0;background:#0a1424;}
+  #globeLink{position:absolute;top:10px;right:10px;z-index:500;background:rgba(4,10,20,.82);
+    border:1px solid var(--cy);color:var(--cy);border-radius:20px;padding:6px 12px;font:600 11px system-ui;
+    letter-spacing:1px;text-decoration:none;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);}
+  #globeLink:hover{background:var(--cy);color:#02121f;}
+  .maperr{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:12px;}
+  .leaflet-container{background:#0a1424;} .leaflet-tile{filter:saturate(1.05) contrast(1.05);}
+  .muted{color:var(--dim);font-size:12px;}
+  .rv-pin{background:rgba(2,6,14,.85);border:1px solid var(--cy);color:#fff;border-radius:6px;font:600 11px system-ui;padding:2px 6px;}
+  .rv-pin::before{display:none;}
+  @media(max-width:900px){ #grid{grid-template-columns:1fr;grid-template-rows:auto auto auto 260px;
+    grid-template-areas:"weather" "news" "tasks" "map";} #time{font-size:34px;} }
+</style>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/static/identity.js"></script>
+<script src="/static/boot.js"></script>
+<script src="/static/nowplaying.js"></script>
+</head>
+<body>
+<div id="bgfx"></div>
+<div id="wrap">
+  <header>
+    <div><div class="brand ident-name">RENCORA</div><div class="sub">HOLOGRAPHIC INFO WALL</div></div>
+    <div id="clock"><div id="time">--:--</div><div id="date">…</div></div>
+  </header>
+  <div id="ticker"></div>
+  <div id="grid">
+    <div class="panel" id="pWeather"><div class="ttl">WETTER</div><div id="weatherBody"><div class="muted">Lade Wetter…</div></div></div>
+    <div class="panel" id="pMap"><div id="map"></div>
+      <a id="globeLink" href="/globe" title="Auf dem 3D-Globus öffnen">🛰️ GLOBUS</a>
+      <div class="maperr" id="mapErr" style="display:none">Karte offline</div></div>
+    <div class="panel" id="pNews"><div class="ttl">NACHRICHTEN</div><div id="newsBody"><div class="muted">Lade News…</div></div></div>
+    <div class="panel" id="pTasks"><div class="ttl">AUFGABEN</div>
+      <input id="taskIn" placeholder="Aufgabe hinzufügen + Enter…" autocomplete="off">
+      <ul id="taskList"></ul>
+    </div>
+  </div>
+</div>
+<div id="sumbox"></div>
+<script>
+/* Rencora Info-Wall — Uhr, Wetter (Open-Meteo), News (RSS), Aufgaben (lokal), Karte (Leaflet/OSM).
+   Nach dem Vorbild von ConceptBytes' JARVIS-Projektor-Display. Engine Mark-LI/FatihMakes CC BY-NC. */
+(function(){
+  // clock
+  function tick(){ var n=new Date();
+    document.getElementById('time').textContent=n.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
+    document.getElementById('date').textContent=n.toLocaleDateString('de-DE',{weekday:'long',day:'2-digit',month:'long',year:'numeric'}); }
+  tick(); setInterval(tick,1000*20); setInterval(tick,1000);
+
+  function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function jget(u){ return fetch(u).then(function(r){ if(!r.ok) throw 0; return r.json(); }); }
+
+  // weather
+  var mapInited=false;
+  function renderWeather(w){
+    var b=document.getElementById('weatherBody');
+    if(!w||w.error||w.temp==null){ b.innerHTML='<div class="muted">Wetter nicht verfügbar.</div>'; return; }
+    var days=(w.days||[]).map(function(d){
+      var dn=d.date?new Date(d.date).toLocaleDateString('de-DE',{weekday:'short'}):'';
+      return '<div class="wday"><div class="d">'+esc(dn)+'</div><div class="i">'+esc(d.icon)+'</div>'+
+        '<div class="t"><b>'+Math.round(d.max)+'°</b> / '+Math.round(d.min)+'°</div></div>';
+    }).join('');
+    b.innerHTML='<div class="wcity">'+esc(w.city)+'</div>'+
+      '<div class="wnow"><div class="wicon">'+esc(w.icon)+'</div><div><div class="wtemp">'+Math.round(w.temp)+'°</div>'+
+      '<div class="muted">'+esc(w.label)+'</div></div>'+
+      '<div class="wmeta" style="margin-left:auto">💨 '+Math.round(w.wind||0)+' km/h<br>💧 '+(w.humidity!=null?w.humidity+'%':'—')+'</div></div>'+
+      '<div class="wdays">'+days+'</div>';
+    if(!mapInited && w.lat!=null) initMap(w.lat, w.lon, w.city);
+  }
+  function loadWeather(){ jget('/api/weather').then(renderWeather).catch(function(){
+    document.getElementById('weatherBody').innerHTML='<div class="muted">Wetter nicht verfügbar (Server/Config prüfen).</div>'; }); }
+
+  // news
+  function renderNews(d){
+    var b=document.getElementById('newsBody'); var items=(d&&d.items)||[];
+    if(!items.length){ b.innerHTML='<div class="muted">Keine Nachrichten.</div>'; return; }
+    b.innerHTML=items.map(function(it){
+      var img=it.image?'<img class="nthumb" src="'+encodeURI(it.image)+'" alt="" loading="lazy" onerror="this.style.display=\'none\'">':'';
+      var src=it.source?'<span class="nsrc">'+esc(it.source)+'</span>':'';
+      var open=it.link?' href="'+encodeURI(it.link)+'" target="_blank" rel="noopener"':'';
+      var globe=(it.lat!=null)?'<span class="nglobe" data-lat="'+it.lat+'" data-lon="'+it.lon+'" data-name="'+esc(it.place)+'">🌍 '+esc(it.place)+'</span>':'';
+      var sum=it.link?'<span class="nsum" data-url="'+encodeURI(it.link)+'" data-title="'+esc(it.title)+'">📄 Kurz</span>':'';
+      return '<a class="nitem"'+open+'>'+img+'<div class="ntext">'+src+esc(it.title)+globe+sum+'</div></a>';
+    }).join('');
+    Array.prototype.forEach.call(b.querySelectorAll('.nglobe'), function(g){
+      g.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation();
+        window.open('/globe?lat='+g.dataset.lat+'&lon='+g.dataset.lon+'&name='+encodeURIComponent(g.dataset.name), '_blank'); });
+    });
+    Array.prototype.forEach.call(b.querySelectorAll('.nsum'), function(s){
+      s.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); summarize(s.dataset.url, s.dataset.title); });
+    });
+  }
+  function loadNews(){ jget('/api/news').then(renderNews).catch(function(){
+    document.getElementById('newsBody').innerHTML='<div class="muted">News nicht verfügbar (Server/Config prüfen).</div>'; }); }
+
+  // map (Leaflet + OSM), graceful fallback
+  function initMap(lat,lon,city){
+    if(mapInited) return;
+    var gl=document.getElementById('globeLink');
+    if(gl) gl.href='/globe?lat='+lat+'&lon='+lon+'&name='+encodeURIComponent(city||'');
+    if(!window.L){ document.getElementById('mapErr').style.display='flex'; return; }
+    try{
+      mapInited=true;
+      var map=L.map('map',{zoomControl:false,attributionControl:false}).setView([lat,lon],12);
+      // Satellitenbild (Esri World Imagery, kein Key)
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        {maxZoom:18}).addTo(map);
+      var ac=(getComputedStyle(document.documentElement).getPropertyValue('--cy')||'#b06bff').trim();
+      // Standort-Pin
+      L.circleMarker([lat,lon],{radius:9,color:'#fff',fillColor:ac,fillOpacity:.9,weight:3}).addTo(map)
+        .bindTooltip('📍 '+(city||'Standort'),{permanent:true,direction:'top',className:'rv-pin'});
+      L.circle([lat,lon],{radius:1500,color:ac,fillColor:ac,fillOpacity:.08,weight:1}).addTo(map);
+      setTimeout(function(){ map.invalidateSize(); },300);
+    }catch(e){ document.getElementById('mapErr').style.display='flex'; }
+  }
+
+  // tasks (server-backed → auch per Sprache 'merk dir …' befüllbar, erscheint hier)
+  var tasks=[];
+  function renderTasks(){
+    var ul=document.getElementById('taskList'); ul.innerHTML='';
+    tasks.forEach(function(t,i){
+      var li=document.createElement('li'); if(t.done) li.className='done';
+      li.innerHTML='<span class="cb">'+(t.done?'☑':'☐')+'</span><span>'+esc(t.text)+'</span><span class="rm">✕</span>';
+      li.querySelector('.cb').onclick=function(){ taskOp({op:'toggle',index:i}); };
+      li.querySelector('.rm').onclick=function(){ taskOp({op:'delete',index:i}); };
+      ul.appendChild(li);
+    });
+  }
+  function applyTasks(d){ tasks=(d&&d.tasks)||[]; renderTasks(); }
+  function loadTasks(){ fetch('/api/tasks').then(function(r){return r.json();}).then(applyTasks).catch(function(){}); }
+  function taskOp(body){ fetch('/api/tasks',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+    .then(function(r){return r.json();}).then(applyTasks).catch(function(){}); }
+  var ti=document.getElementById('taskIn');
+  ti.addEventListener('keydown',function(e){ if(e.key==='Enter'&&ti.value.trim()){ taskOp({op:'add',text:ti.value.trim()}); ti.value=''; } });
+  loadTasks(); setInterval(loadTasks, 30000);   // regelmäßig neu laden → Sprach-Aufgaben erscheinen
+
+  // Artikel-Zusammenfassung (Groq) + Vorlesen
+  function summarize(url, title) {
+    var box = document.getElementById('sumbox');
+    box.innerHTML = '<span class="x">✕</span><h4>📄 ' + esc(title || 'Zusammenfassung') + '</h4>' +
+      '<div id="sumtext" class="muted">Fasse zusammen…</div>';
+    box.style.display = 'block';
+    box.querySelector('.x').onclick = function () { box.style.display = 'none'; try { speechSynthesis.cancel(); } catch (e) {} };
+    fetch('/api/summarize?url=' + encodeURIComponent(url)).then(function (r) { return r.json(); }).then(function (d) {
+      var s = (d && d.summary) || 'Keine Zusammenfassung möglich.';
+      var el = document.getElementById('sumtext'); el.innerHTML = esc(s); el.className = '';
+      try { if (window.speechSynthesis) { var u = new SpeechSynthesisUtterance(s); u.lang = 'de-DE'; speechSynthesis.cancel(); speechSynthesis.speak(u); } } catch (e) {}
+    }).catch(function () { var el = document.getElementById('sumtext'); if (el) el.textContent = 'Zusammenfassung fehlgeschlagen.'; });
+  }
+
+  // Krypto-Ticker
+  var COINNAMES={bitcoin:'₿ BTC',ethereum:'Ξ ETH',solana:'◎ SOL',cardano:'ADA',ripple:'XRP',dogecoin:'DOGE',litecoin:'LTC'};
+  function loadCrypto(){
+    fetch('/api/crypto').then(function(r){return r.json();}).then(function(d){
+      var c=(d&&d.coins)||{}, parts=[];
+      Object.keys(c).forEach(function(id){
+        var p=c[id]||{}, eur=p.eur, ch=p.eur_24h_change;
+        if(eur==null) return;
+        var cls=(ch>=0)?'up':'dn', ar=(ch>=0)?'▲':'▼';
+        var price=eur>=100?Math.round(eur).toLocaleString('de-DE'):eur.toFixed(2);
+        parts.push('<span><span class="c">'+(COINNAMES[id]||id.toUpperCase())+'</span> '+price+' € '+
+          '<span class="'+cls+'">'+ar+Math.abs(ch||0).toFixed(1)+'%</span></span>');
+      });
+      document.getElementById('ticker').innerHTML=parts.join('');
+    }).catch(function(){});
+  }
+
+  loadWeather(); loadNews(); loadCrypto();
+  setInterval(loadWeather, 15*60*1000);
+  setInterval(loadNews, 15*60*1000);
+  setInterval(loadCrypto, 90*1000);
+})();
+</script>
+</body>
+</html>

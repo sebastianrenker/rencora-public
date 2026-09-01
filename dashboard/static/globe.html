@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RENCORA GLOBE</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cesium@1.111.0/Build/Cesium/Widgets/widgets.css">
+<style>
+  :root{ --cy:#b06bff; --cy2:#7a3fe0; --bg:#02040a; --ink:#e7ecff; --dim:#8fa3c0; }
+  *{box-sizing:border-box;margin:0;}
+  html,body{height:100%;background:var(--bg);color:var(--ink);overflow:hidden;font-family:system-ui,sans-serif;}
+  #c{position:fixed;inset:0;}
+  .cesium-viewer-bottom,.cesium-widget-credits{display:none!important;}
+  #hdr{position:fixed;top:14px;left:0;right:0;text-align:center;z-index:20;pointer-events:none;}
+  #hdr .brand{font-size:20px;letter-spacing:11px;color:#fff;text-shadow:0 0 14px var(--cy2);}
+  #hdr .sub{font-size:10px;letter-spacing:5px;color:var(--dim);margin-top:2px;}
+  #search{position:fixed;top:54px;left:50%;transform:translateX(-50%);z-index:25;display:flex;gap:8px;
+    width:min(520px,88vw);}
+  #q{flex:1;background:rgba(4,10,20,.8);border:1px solid var(--cy);border-radius:24px;color:#fff;
+    font:14px system-ui;padding:11px 18px;outline:none;-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px);}
+  #q::placeholder{color:var(--dim);}
+  .gbtn{background:rgba(4,10,20,.8);border:1px solid var(--cy);color:var(--cy);border-radius:50%;
+    width:44px;height:44px;font-size:17px;cursor:pointer;-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px);}
+  .gbtn:hover{background:var(--cy);color:#02121f;}
+  #tools{position:fixed;right:14px;bottom:16px;z-index:25;display:flex;flex-direction:column;gap:8px;}
+  #note{position:fixed;left:14px;bottom:12px;z-index:25;font-size:10px;color:var(--dim);letter-spacing:.5px;}
+  #wx{position:fixed;left:14px;top:100px;z-index:25;display:none;align-items:center;gap:12px;
+    background:rgba(4,10,20,.82);border:1px solid var(--cy);border-radius:14px;padding:12px 16px;
+    -webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px);box-shadow:0 0 20px rgba(0,0,0,.4);}
+  #wx .wxi{font-size:40px;line-height:1;}
+  #wx .wxt{font:700 30px/1 ui-monospace,monospace;color:#fff;}
+  #wx .wxl{font-size:12px;color:var(--dim);} #wx .wxn{font-size:12px;color:var(--ink);letter-spacing:1px;margin-top:2px;}
+  #info{position:fixed;left:14px;top:186px;z-index:25;display:none;max-width:330px;
+    background:rgba(4,10,20,.85);border:1px solid var(--cy);border-radius:12px;padding:12px 14px;
+    font:12.5px/1.55 system-ui;color:var(--ink);-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px);}
+  #info b{color:var(--cy);display:block;margin-bottom:5px;font-size:13px;letter-spacing:1px;}
+  #info .rd{color:var(--cy);cursor:pointer;font-size:11px;margin-top:7px;display:inline-block;}
+  #info .rd:hover{text-decoration:underline;}
+  body.ambient #info{display:none!important;}
+  body.ambient #search,body.ambient #tools,body.ambient #hdr .sub,body.ambient #note{display:none!important;}
+  body.ambient{cursor:none;}
+  body.ambient #hdr .brand{opacity:.5;}
+  #tour{position:fixed;left:50%;bottom:36px;transform:translateX(-50%);z-index:26;display:none;
+    max-width:min(760px,88vw);text-align:center;font:600 20px/1.35 system-ui,sans-serif;color:#fff;
+    background:rgba(2,6,14,.7);border:1px solid var(--cy);border-radius:14px;padding:14px 22px;
+    text-shadow:0 0 12px rgba(0,0,0,.8);-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px);}
+  #err{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:30;
+    background:var(--bg);color:var(--dim);font-size:14px;text-align:center;padding:30px;}
+</style>
+<script src="/static/identity.js"></script>
+<script src="/static/boot.js"></script>
+<script>window.CESIUM_BASE_URL='https://cdn.jsdelivr.net/npm/cesium@1.111.0/Build/Cesium/';</script>
+<script src="https://cdn.jsdelivr.net/npm/cesium@1.111.0/Build/Cesium/Cesium.js"></script>
+</head>
+<body>
+<div id="c"></div>
+<div id="hdr"><div class="brand ident-name">RENCORA</div><div class="sub">ORBITAL GLOBE</div></div>
+<div id="search">
+  <input id="q" placeholder="Ort suchen — jede Stadt, jedes Dorf, jede Adresse…" autocomplete="off">
+  <button class="gbtn" id="go" title="Suchen">🔍</button>
+</div>
+<div id="tools">
+  <button class="gbtn" id="news" title="Nachrichten-Pins">📰</button>
+  <button class="gbtn" id="flights" title="Flugverkehr (live)">✈️</button>
+  <button class="gbtn" id="spin" title="Rotieren">↻</button>
+  <button class="gbtn" id="ambient" title="Ambient-Vollbild (Esc beendet)">⛶</button>
+  <button class="gbtn" id="home" title="Weltansicht">🌍</button>
+</div>
+<div id="wx"></div>
+<div id="info"></div>
+<div id="tour"></div>
+<div id="note">Ziehen = drehen · Scrollen = zoomen · Imagery © Esri, Maxar, Earthstar · Suche © OpenStreetMap</div>
+<div id="err">3D-Globus konnte nicht geladen werden (Internet/Browser). Bitte mit Verbindung erneut öffnen.</div>
+<script>
+/* Rencora Orbital Globe — CesiumJS + Esri-Satellitenbild, ohne Token. Zu jedem Ort fliegen/zoomen,
+   Suche via OpenStreetMap-Nominatim, Sprachsteuerung über /ws {type:'globe_fly'}.
+   Engine Mark-LI/FatihMakes CC BY-NC. */
+(function () {
+  if (!window.Cesium) { document.getElementById('err').style.display = 'flex'; return; }
+  var accent = (getComputedStyle(document.documentElement).getPropertyValue('--cy') || '#b06bff').trim();
+  var viewer, marker = null, spinning = false, spinRAF = null;
+  try {
+    Cesium.Ion.defaultAccessToken = '';                 // no ion — use free Esri imagery
+    viewer = new Cesium.Viewer('c', {
+      baseLayer: false, baseLayerPicker: false, geocoder: false, timeline: false, animation: false,
+      homeButton: false, sceneModePicker: false, navigationHelpButton: false, fullscreenButton: false,
+      infoBox: false, selectionIndicator: false
+    });
+    viewer.scene.skyAtmosphere.show = true;
+    viewer.scene.globe.enableLighting = false;
+    Cesium.ArcGisMapServerImageryProvider.fromUrl(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer'
+    ).then(function (p) { viewer.imageryLayers.addImageryProvider(p); })
+     .catch(function () {
+        // Fallback: OpenStreetMap tiles
+        viewer.imageryLayers.addImageryProvider(new Cesium.OpenStreetMapImageryProvider({
+          url: 'https://a.tile.openstreetmap.org/' }));
+     });
+    // start looking at Europe
+    viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(10.4, 51.1, 9000000), duration: 0 });
+    // 3D terrain if a Cesium-ion token is configured (config/globe.json) — else stays flat
+    fetch('/api/globe-config').then(function (r) { return r.json(); }).then(function (cfg) {
+      if (cfg && cfg.ion_token) {
+        try {
+          Cesium.Ion.defaultAccessToken = cfg.ion_token;
+          Cesium.createWorldTerrainAsync().then(function (t) {
+            viewer.terrainProvider = t; viewer.scene.globe.enableLighting = true;
+            document.getElementById('note').textContent = '3D-Gelände aktiv · ' +
+              document.getElementById('note').textContent;
+          }).catch(function () {});
+        } catch (x) {}
+      }
+    }).catch(function () {});
+  } catch (e) {
+    document.getElementById('err').style.display = 'flex'; return;
+  }
+
+  function speakDE(text) {
+    try {
+      if (!window.speechSynthesis || !text) return;
+      window.speechSynthesis.cancel();
+      var u = new SpeechSynthesisUtterance(String(text).slice(0, 220));
+      u.lang = 'de-DE'; u.rate = 1.0; window.speechSynthesis.speak(u);
+    } catch (e) {}
+  }
+  // ISS-Live-Marker (aktualisiert alle 5 s)
+  var issEntity = null;
+  function updateISS() {
+    fetch('https://api.wheretheiss.at/v1/satellites/25544').then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.latitude == null) return;
+        var pos = Cesium.Cartesian3.fromDegrees(d.longitude, d.latitude, (d.altitude || 420) * 1000);
+        if (!issEntity) {
+          issEntity = viewer.entities.add({ position: pos,
+            point: { pixelSize: 9, color: Cesium.Color.YELLOW, outlineColor: Cesium.Color.BLACK, outlineWidth: 1,
+                     disableDepthTestDistance: Number.POSITIVE_INFINITY },
+            label: { text: '🛰️ ISS', font: '600 11px system-ui', fillColor: Cesium.Color.WHITE, showBackground: true,
+                     backgroundColor: Cesium.Color.fromCssColorString('rgba(2,6,14,0.7)'),
+                     pixelOffset: new Cesium.Cartesian2(0, -15), disableDepthTestDistance: Number.POSITIVE_INFINITY } });
+        } else { issEntity.position = pos; }
+      }).catch(function () {});
+  }
+  setInterval(updateISS, 5000); updateISS();
+
+  // Flugverkehr-Layer (live via /api/flights → OpenSky). Opt-in per ✈️-Knopf.
+  var flightEntities = [], flightsOn = false, flightTimer = null;
+  function clearFlights() { flightEntities.forEach(function (e) { viewer.entities.remove(e); }); flightEntities = []; }
+  function updateFlights() {
+    fetch('/api/flights?lat=51.1&lon=10.4').then(function (r) { return r.json(); }).then(function (d) {
+      clearFlights();
+      (d.flights || []).forEach(function (f) {
+        flightEntities.push(viewer.entities.add({
+          position: Cesium.Cartesian3.fromDegrees(f.lon, f.lat, (f.alt || 10000)),
+          point: { pixelSize: 6, color: Cesium.Color.fromCssColorString('#7fd0ff'),
+                   disableDepthTestDistance: Number.POSITIVE_INFINITY },
+          label: { text: '✈ ' + (f.call || ''), font: '500 10px system-ui', fillColor: Cesium.Color.WHITE,
+                   pixelOffset: new Cesium.Cartesian2(0, -12), disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                   translucencyByDistance: new Cesium.NearFarScalar(3e5, 1.0, 3e6, 0.0) }
+        }));
+      });
+    }).catch(function () {});
+  }
+  function toggleFlights() {
+    flightsOn = !flightsOn;
+    if (flightsOn) { updateFlights(); flightTimer = setInterval(updateFlights, 15000); }
+    else { clearFlights(); if (flightTimer) { clearInterval(flightTimer); flightTimer = null; } }
+  }
+  document.getElementById('flights').onclick = toggleFlights;
+
+  var spinRate = 0.0025;
+  function stopSpin() { spinning = false; if (spinRAF) cancelAnimationFrame(spinRAF); spinRAF = null; }
+  function startSpin() {
+    if (spinning) return;
+    spinning = true;
+    (function step() {
+      if (!spinning) return;
+      viewer.scene.camera.rotate(Cesium.Cartesian3.UNIT_Z, -spinRate);
+      spinRAF = requestAnimationFrame(step);
+    })();
+  }
+  function spin() { if (spinning) stopSpin(); else startSpin(); }
+
+  // Ambient / Vollbild-Modus für Leinwand & Beamer: UI aus, langsame Rotation, Cursor weg.
+  var ambient = false;
+  function enterAmbient() {
+    ambient = true; document.body.classList.add('ambient');
+    if (marker) { viewer.entities.remove(marker); marker = null; }
+    spinRate = 0.0011; stopSpin(); startTour();
+    try { if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen(); } catch (x) {}
+  }
+  function exitAmbient() {
+    ambient = false; document.body.classList.remove('ambient');
+    spinRate = 0.0025; stopTour(); stopSpin();
+    document.getElementById('wx').style.display = 'none';
+    try { if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen(); } catch (x) {}
+  }
+  function toggleAmbient() { if (ambient) exitAmbient(); else enterAmbient(); }
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && ambient) exitAmbient(); });
+  document.addEventListener('dblclick', function () { if (ambient) exitAmbient(); });
+
+  // Ambient-Tour: fliegt die aktuellen News-Orte nacheinander ab (Schlagzeile + Wetter),
+  // fällt auf langsames Rotieren zurück, wenn keine verorteten Nachrichten da sind.
+  var tourTimer = null, tourIdx = 0;
+  function stopTour() { if (tourTimer) { clearTimeout(tourTimer); tourTimer = null; }
+    var t = document.getElementById('tour'); if (t) t.style.display = 'none'; }
+  function startTour() {
+    if (!newsData.length) { startSpin(); return; }   // nichts verortet → einfach drehen
+    function step() {
+      var it = newsData[tourIdx % newsData.length]; tourIdx++;
+      viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(it.lon, it.lat, 70000), duration: 4.5 });
+      var t = document.getElementById('tour'); t.textContent = '📰 ' + it.title; t.style.display = 'block';
+      showWeather(it.lat, it.lon, it.title);
+      speakDE(it.title);
+      tourTimer = setTimeout(step, 9500);
+    }
+    step();
+  }
+  function flyTo(lat, lon, name, height) {
+    stopSpin();
+    viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(lon, lat, height || 9000), duration: 2.6 });
+    if (marker) viewer.entities.remove(marker);
+    marker = viewer.entities.add({
+      position: Cesium.Cartesian3.fromDegrees(lon, lat),
+      point: { pixelSize: 13, color: Cesium.Color.fromCssColorString(accent),
+               outlineColor: Cesium.Color.WHITE, outlineWidth: 2,
+               disableDepthTestDistance: Number.POSITIVE_INFINITY },
+      label: { text: (name || '').split(',')[0], font: '600 14px system-ui', fillColor: Cesium.Color.WHITE,
+               showBackground: true, backgroundColor: Cesium.Color.fromCssColorString('rgba(2,6,14,0.8)'),
+               pixelOffset: new Cesium.Cartesian2(0, -22), disableDepthTestDistance: Number.POSITIVE_INFINITY }
+    });
+    showWeather(lat, lon, name);
+  }
+  function home() { stopSpin(); if (marker) { viewer.entities.remove(marker); marker = null; }
+    document.getElementById('wx').style.display = 'none';
+    viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(10, 25, 20000000), duration: 2 }); }
+
+  var WMO = { 0: ['☀️', 'Klar'], 1: ['🌤️', 'Heiter'], 2: ['⛅', 'Teils bewölkt'], 3: ['☁️', 'Bewölkt'],
+    45: ['🌫️', 'Nebel'], 48: ['🌫️', 'Reifnebel'], 51: ['🌦️', 'Niesel'], 53: ['🌦️', 'Niesel'], 55: ['🌧️', 'Niesel'],
+    61: ['🌦️', 'Regen'], 63: ['🌧️', 'Regen'], 65: ['🌧️', 'Starkregen'], 66: ['🌧️', 'Gefr. Regen'], 67: ['🌧️', 'Gefr. Regen'],
+    71: ['🌨️', 'Schnee'], 73: ['🌨️', 'Schnee'], 75: ['❄️', 'Starker Schnee'], 77: ['🌨️', 'Schneegriesel'],
+    80: ['🌦️', 'Schauer'], 81: ['🌧️', 'Schauer'], 82: ['⛈️', 'Starke Schauer'], 85: ['🌨️', 'Schneeschauer'],
+    86: ['❄️', 'Schneeschauer'], 95: ['⛈️', 'Gewitter'], 96: ['⛈️', 'Gewitter'], 99: ['⛈️', 'Gewitter'] };
+  function gesc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  function showWeather(lat, lon, name) {
+    fetch('https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon +
+          '&current=temperature_2m,weather_code,wind_speed_10m')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var cur = (d && d.current) || {}; if (cur.temperature_2m == null) return;
+        var w = WMO[cur.weather_code] || ['•', '—'];
+        var el = document.getElementById('wx');
+        el.innerHTML = '<div class="wxi">' + w[0] + '</div><div><div class="wxt">' + Math.round(cur.temperature_2m) +
+          '°</div><div class="wxl">' + w[1] + ' · 💨 ' + Math.round(cur.wind_speed_10m || 0) + ' km/h</div>' +
+          '<div class="wxn">' + gesc((name || '').split(',')[0]) + '</div></div>';
+        el.style.display = 'flex';
+      }).catch(function () {});
+  }
+
+  function fetchWiki(title) {
+    var box = document.getElementById('info');
+    if (!title) { box.style.display = 'none'; return; }
+    fetch('https://de.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(title))
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (!d || !d.extract) { box.style.display = 'none'; return; }
+        var ex = d.extract; if (ex.length > 380) ex = ex.slice(0, 380) + '…';
+        box.innerHTML = '<b>' + gesc(d.title || title) + '</b>' + gesc(ex) + '<span class="rd">🔊 vorlesen</span>';
+        box.style.display = 'block';
+        box.querySelector('.rd').onclick = function () { speakDE(d.extract); };
+      }).catch(function () { box.style.display = 'none'; });
+  }
+
+  var newsEntities = [], newsShown = false, newsData = [];
+  function loadNewsPins() {
+    if (newsEntities.length) { newsShown = true; newsEntities.forEach(function (e) { e.show = true; }); return; }
+    fetch('/api/news').then(function (r) { return r.json(); }).then(function (d) {
+      (d.items || []).forEach(function (it) {
+        if (it.lat == null) return;
+        var e = viewer.entities.add({
+          position: Cesium.Cartesian3.fromDegrees(it.lon, it.lat),
+          point: { pixelSize: 10, color: Cesium.Color.fromCssColorString('#5ef2a0'),
+                   outlineColor: Cesium.Color.WHITE, outlineWidth: 1,
+                   disableDepthTestDistance: Number.POSITIVE_INFINITY },
+          label: { text: (it.title || '').slice(0, 42), font: '500 11px system-ui', fillColor: Cesium.Color.WHITE,
+                   showBackground: true, backgroundColor: Cesium.Color.fromCssColorString('rgba(2,6,14,0.78)'),
+                   pixelOffset: new Cesium.Cartesian2(0, -16), disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                   translucencyByDistance: new Cesium.NearFarScalar(1.5e6, 1.0, 1.4e7, 0.0) }
+        });
+        e._news = true; e._newsLink = it.link;
+        newsEntities.push(e);
+        newsData.push({ lat: it.lat, lon: it.lon, title: it.title, link: it.link });
+      });
+      newsShown = true;
+    }).catch(function () {});
+  }
+  function toggleNews() {
+    if (!newsEntities.length) { loadNewsPins(); return; }
+    newsShown = !newsShown;
+    newsEntities.forEach(function (e) { e.show = newsShown; });
+  }
+  document.getElementById('news').onclick = toggleNews;
+  loadNewsPins();   // Nachrichten-Pins standardmäßig anzeigen
+
+  function search(q) {
+    q = (q || '').trim(); if (!q) return;
+    fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(q),
+      { headers: { 'Accept': 'application/json' } })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { if (d && d[0]) flyTo(parseFloat(d[0].lat), parseFloat(d[0].lon), d[0].display_name, 4000);
+                           else { var n = document.getElementById('note'); n.textContent = 'Ort nicht gefunden: ' + q; } })
+      .catch(function () {});
+  }
+  document.getElementById('go').onclick = function () { search(document.getElementById('q').value); };
+  document.getElementById('q').addEventListener('keydown', function (e) { if (e.key === 'Enter') search(this.value); });
+  document.getElementById('spin').onclick = spin;
+  document.getElementById('ambient').onclick = toggleAmbient;
+  document.getElementById('home').onclick = home;
+  window.rencoraGlobe = { flyTo: flyTo, spin: spin, home: home, search: search };
+
+  // Deep-link: /globe?lat=..&lon=..&name=..  oder  /globe?place=Berlin  → direkt hinfliegen
+  try {
+    var qp = new URLSearchParams(location.search);
+    if (qp.get('lat') && qp.get('lon')) {
+      setTimeout(function () { flyTo(parseFloat(qp.get('lat')), parseFloat(qp.get('lon')), qp.get('name') || '', 4000); }, 400);
+    } else if (qp.get('place')) {
+      setTimeout(function () { search(qp.get('place')); }, 400);
+    }
+    if (qp.has('ambient')) setTimeout(enterAmbient, 900);
+  } catch (x) {}
+
+  // Klick auf den Globus → Ort identifizieren (Reverse-Geocoding)
+  var handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+  handler.setInputAction(function (click) {
+    var picked = viewer.scene.pick(click.position);
+    if (picked && picked.id && picked.id._news) {
+      if (picked.id._newsLink) window.open(picked.id._newsLink, '_blank');
+      return;
+    }
+    var carto = viewer.camera.pickEllipsoid(click.position, viewer.scene.globe.ellipsoid);
+    if (!carto) return;
+    var c = Cesium.Cartographic.fromCartesian(carto);
+    var lat = Cesium.Math.toDegrees(c.latitude), lon = Cesium.Math.toDegrees(c.longitude);
+    fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lon + '&zoom=12',
+      { headers: { 'Accept': 'application/json' } })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var nm = (d && d.display_name) ? d.display_name : (lat.toFixed(3) + ', ' + lon.toFixed(3));
+        document.getElementById('note').textContent = '📍 ' + nm;
+        showWeather(lat, lon, nm);
+        var a = (d && d.address) || {};
+        var title = (d && d.name) || a.city || a.town || a.village || a.municipality || a.county || nm.split(',')[0];
+        fetchWiki(title);
+      }).catch(function () {});
+  }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+  // Voice control via /ws {type:'globe_fly'}
+  var TOKEN = sessionStorage.getItem('jarvis_token') || '';
+  if (TOKEN) {
+    try {
+      var proto = location.protocol === 'https:' ? 'wss' : 'ws';
+      var ws = new WebSocket(proto + '://' + location.host + '/ws?token=' + encodeURIComponent(TOKEN));
+      ws.onmessage = function (e) {
+        var m; try { m = JSON.parse(e.data); } catch (x) { return; }
+        if (m.type !== 'globe_fly') return;
+        if (m.name === '__spin__') spin();
+        else if (m.name === '__home__') home();
+        else if (typeof m.lat === 'number') flyTo(m.lat, m.lon, m.name, 4000);
+      };
+    } catch (x) {}
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,5 @@
+{
+  "_hinweis": "Optionaler Zweitanbieter fuer schwere Aufgaben (spart Gemini-Tokens). 'gsk_...' = Groq (groq.com), 'xai-...' = xAI Grok. Rencora erkennt den Anbieter automatisch. Leer lassen = nur Gemini.",
+  "xai_api_key": "",
+  "model": ""
+}

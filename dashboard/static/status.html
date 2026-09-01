@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RENCORA STATUS</title>
+<style>
+  :root{ --cy:#b06bff; --cy2:#7a3fe0; --bg:#03060d; --ink:#e7ecff; --dim:#8fa3c0; --ok:#5ef2a0; --bad:#ff6a8a; }
+  *{box-sizing:border-box;margin:0;}
+  html,body{height:100%;background:var(--bg);color:var(--ink);font-family:system-ui,sans-serif;}
+  #wrap{max-width:760px;margin:0 auto;padding:26px 20px;}
+  h1{font-size:20px;letter-spacing:10px;color:#fff;text-shadow:0 0 14px var(--cy2);}
+  .sub{font-size:10px;letter-spacing:5px;color:var(--dim);margin:3px 0 24px;}
+  .card{background:rgba(10,18,34,.5);border:1px solid rgba(120,120,255,.28);border-radius:14px;
+    padding:16px 18px;margin-bottom:14px;}
+  .row{display:flex;align-items:center;justify-content:space-between;padding:9px 2px;border-bottom:1px solid rgba(120,120,255,.1);}
+  .row:last-child{border-bottom:0;}
+  .lbl{font-size:14px;} .lbl small{display:block;color:var(--dim);font-size:11px;margin-top:2px;}
+  .badge{font:600 12px system-ui;letter-spacing:1px;padding:4px 12px;border-radius:20px;border:1px solid var(--dim);color:var(--dim);}
+  .badge.ok{color:var(--ok);border-color:var(--ok);} .badge.bad{color:var(--bad);border-color:var(--bad);}
+  .badge.warn{color:#ffc46b;border-color:#ffc46b;}
+  .ttl{font-size:11px;letter-spacing:4px;color:var(--cy);text-shadow:0 0 8px var(--cy2);margin-bottom:6px;}
+</style>
+<script src="/static/identity.js"></script>
+<script src="/static/boot.js"></script>
+</head>
+<body>
+<div id="wrap">
+  <h1 class="ident-name">RENCORA</h1>
+  <div class="sub">SYSTEM STATUS</div>
+  <div class="card">
+    <div class="ttl">DIENSTE</div>
+    <div id="services"><div class="row"><span class="lbl">Lade…</span></div></div>
+  </div>
+</div>
+<script>
+/* Rencora Status — Live-Selbstdiagnose. Engine Mark-LI/FatihMakes CC BY-NC. */
+(function(){
+  function badge(state, txt){ return '<span class="badge '+state+'">'+txt+'</span>'; }
+  function row(label, sub, b){ return '<div class="row"><span class="lbl">'+label+
+    (sub?'<small>'+sub+'</small>':'')+'</span>'+b+'</div>'; }
+  function load(){
+    fetch('/api/status').then(function(r){return r.json();}).then(function(d){
+      var w={online:'Internet OK',nonet:'ohne Internet',offline:'kein WLAN','?':'unbekannt'}[d.wifi]||d.wifi;
+      var html='';
+      html+=row('Sprach-KI (Gemini)','Live-Stimme & Verstehen', d.gemini?badge('ok','KONFIGURIERT'):badge('bad','KEIN KEY'));
+      html+=row('Zweit-KI ('+(d.provider||'Grok/Groq')+')','Schwere Aufgaben, spart Gemini-Tokens', d.groq?badge('ok','AKTIV'):badge('warn','AUS'));
+      html+=row('WLAN / Internet','', d.wifi==='online'?badge('ok',w):(d.wifi==='offline'?badge('bad',w):badge('warn',w)));
+      html+=row('Plugins geladen','Fähigkeiten', badge('ok', (d.plugins||'?')+' aktiv'));
+      document.getElementById('services').innerHTML=html;
+    }).catch(function(){ document.getElementById('services').innerHTML=row('Status','','<span class="badge bad">nicht erreichbar</span>'); });
+  }
+  load(); setInterval(load, 15000);
+})();
+</script>
+</body>
+</html>
