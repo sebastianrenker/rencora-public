@@ -26,15 +26,15 @@ PLUGIN = {
 
 def run(parameters: dict, player=None, session_memory=None) -> str:
     try:
-        from actions.lab import load_labels, analyze
+        from actions.lab import load_state, analyze
     except Exception as e:
         return "Das Objekt-Labor ist nicht verfügbar: " + str(e)
-    labels = load_labels()
-    if not labels:
+    labels, caption = load_state()
+    if not labels and not caption:
         return ("Ich sehe gerade keine erkannten Objekte. Öffne das Objekt-Labor (oder Tisch/Leinwand "
                 "mit Kamera) und halte das Bauteil davor.")
     mode = (parameters.get("mode") or "identify").strip()
-    out = analyze(labels, mode)
+    out = analyze(labels, mode, caption)
     if not out:
         return "Ich konnte das gerade nicht analysieren."
     if player:

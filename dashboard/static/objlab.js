@@ -10,6 +10,8 @@
   var full = false;
   var vid = null, overlay = null, cocoModel = null, mobiModel = null;
   var boxLabels = [], clsLabels = [], lastPush = 0, lastCls = 0, ws = null;
+  var captioner = null, lastCaption = '', capBusy = false, lastCap = 0;
+  var CAPCDN = 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2';
   var TOKEN = (function () { try { return sessionStorage.getItem('jarvis_token') || ''; } catch (e) { return ''; } })();
 
   var DE = { person: 'Person', bottle: 'Flasche', cup: 'Tasse', 'cell phone': 'Handy', laptop: 'Laptop',
@@ -87,26 +89,39 @@
   }
 
   function analyze(mode) {
-    var phrase = { identify: 'Was ist das Objekt vor der Kamera?', analysieren: 'Analysiere das erkannte Objekt genau.',
-      zerlegen: 'Wie zerlege ich das erkannte Objekt?', bauen: 'Wie baue ich das erkannte Objekt zusammen?' }[mode] || 'Was ist das?';
-    if (TOKEN) {   // JARVIS-Stimme: Groq analysiert (kostenlos), Rencora spricht es in ihrer Stimme
-      showResult(mode, 'Rencora analysiert…');
-      fetch('/api/lab-speak', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN },
-        body: JSON.stringify({ labels: allLabels(), mode: mode }) })
-        .then(function (r) { return r.json(); }).then(function (d) {
-          var el = document.getElementById('objlab-res'); if (el) el.textContent = (d && d.text) || 'Konnte gerade nicht analysieren.';
-        }).catch(function () { var el = document.getElementById('objlab-res'); if (el) el.textContent = 'Analyse fehlgeschlagen.'; });
-      return;
-    }
-    // Fallback ohne Assistent: Text holen + Browser-Stimme
-    showResult(mode, 'Analysiere…');
-    fetch('/api/lab-analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ labels: allLabels(), mode: mode }) })
-      .then(function (r) { return r.json(); }).then(function (d) {
-        var t = (d && d.text) || 'Konnte gerade nicht analysieren.';
-        document.getElementById('objlab-res').textContent = t;
-        try { if (window.speechSynthesis) { var u = new SpeechSynthesisUtterance(t); u.lang = 'de-DE'; speechSynthesis.cancel(); speechSynthesis.speak(u); } } catch (e) {}
-      }).catch(function () { document.getElementById('objlab-res').textContent = 'Analyse fehlgeschlagen.'; });
+    showResult(mode, captioner ? 'Rencora beschreibt & analysiert…' : 'Rencora analysiert…');
+    var run = function (caption) {
+      var payload = JSON.stringify({ labels: allLabels(), caption: caption || lastCaption || '', mode: mode });
+      if (TOKEN) {   // JARVIS-Stimme: Groq analysiert (kostenlos), Rencora spricht es in ihrer Stimme
+        fetch('/api/lab-speak', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN }, body: payload })
+          .then(function (r) { return r.json(); }).then(function (d) {
+            var el = document.getElementById('objlab-res'); if (el) el.textContent = (d && d.text) || 'Konnte gerade nicht analysieren.';
+          }).catch(function () { var el = document.getElementById('objlab-res'); if (el) el.textContent = 'Analyse fehlgeschlagen.'; });
+      } else {       // Fallback: Text am Bildschirm + Browser-Stimme
+        fetch('/api/lab-analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload })
+          .then(function (r) { return r.json(); }).then(function (d) {
+            var t = (d && d.text) || 'Konnte gerade nicht analysieren.';
+            var el = document.getElementById('objlab-res'); if (el) el.textContent = t;
+            try { if (window.speechSynthesis) { var u = new SpeechSynthesisUtterance(t); u.lang = 'de-DE'; speechSynthesis.cancel(); speechSynthesis.speak(u); } } catch (e) {}
+          }).catch(function () { var el = document.getElementById('objlab-res'); if (el) el.textContent = 'Analyse fehlgeschlagen.'; });
+      }
+    };
+    if (captioner) grabCaption().then(run); else run('');   // frische Szenenbeschreibung, wenn verfügbar
+  }
+
+  function grabCaption() {
+    return new Promise(function (res) {
+      if (!captioner || !vid || vid.readyState < 2) { res(lastCaption || ''); return; }
+      try {
+        var w = 384, sc = w / (vid.videoWidth || w);
+        var c = document.createElement('canvas'); c.width = w; c.height = Math.round((vid.videoHeight || w) * sc);
+        c.getContext('2d').drawImage(vid, 0, 0, c.width, c.height);
+        captioner(c.toDataURL('image/jpeg', 0.85)).then(function (out) {
+          var t = (out && out[0] && (out[0].generated_text || out[0].text)) || '';
+          if (t) lastCaption = t; res(t || lastCaption || '');
+        }).catch(function () { res(lastCaption || ''); });
+      } catch (e) { res(lastCaption || ''); }
+    });
   }
 
   function connectWS() {
@@ -151,6 +166,10 @@
           refresh();
         }).catch(function () {});
       }
+      if (captioner && !capBusy && now - lastCap > 5000) {   // Beschreibung frisch halten (Sprache)
+        lastCap = now; capBusy = true;
+        grabCaption().then(function () { capBusy = false; }).catch(function () { capBusy = false; });
+      }
       refresh();
       requestAnimationFrame(loop);
     }).catch(function () { requestAnimationFrame(loop); });
@@ -160,7 +179,7 @@
     status(all.length ? ('🔍 ' + all.slice(0, 5).join(', ')) : '🔍 nichts erkannt — näher/heller halten');
     var now = Date.now();
     if (now - lastPush > 2500) { lastPush = now;
-      fetch('/api/lab-detect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ labels: all }) }).catch(function () {}); }
+      fetch('/api/lab-detect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ labels: all, caption: lastCaption }) }).catch(function () {}); }
   }
 
   function loadScript(src) { return new Promise(function (res, rej) { var s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); }); }
@@ -175,6 +194,12 @@
         .then(function (m) {
           cocoModel = m; status('🔍 bereit — halte etwas vor die Kamera');
           if (window.mobilenet) mobilenet.load().then(function (mm) { mobiModel = mm; }).catch(function () {});
+          // Freies Bild-Beschreibungsmodell (Transformers.js) im Hintergrund → erkennt beliebige
+          // Objekte inkl. Geld/Werkzeug. Einmaliger ~200 MB Download, danach offline & kostenlos.
+          import(CAPCDN).then(function (mod) {
+            if (mod.env) { mod.env.allowLocalModels = false; }
+            return mod.pipeline('image-to-text', 'Xenova/vit-gpt2-image-captioning', { quantized: true });
+          }).then(function (p) { captioner = p; }).catch(function () {});
           requestAnimationFrame(loop);
         }).catch(function () { status('⚠️ Erkennung konnte nicht laden (Internet?)'); });
     });

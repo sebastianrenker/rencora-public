@@ -778,7 +778,7 @@ class DashboardServer:
             try:
                 body = await request.json()
                 from actions.lab import save_labels
-                save_labels(body.get("labels") or [])
+                save_labels(body.get("labels") or [], body.get("caption") or "")
                 return JSONResponse({"ok": True})
             except Exception as e:
                 return JSONResponse({"error": str(e)}, status_code=500)
@@ -792,7 +792,7 @@ class DashboardServer:
                 from actions.lab import analyze
                 labels = body.get("labels") or []
                 mode = body.get("mode") or "identify"
-                text = await asyncio.to_thread(analyze, labels, mode)
+                text = await asyncio.to_thread(analyze, labels, mode, body.get("caption") or "")
                 return JSONResponse({"text": text or ""})
             except Exception as e:
                 return JSONResponse({"text": "", "error": str(e)}, status_code=500)
@@ -806,7 +806,7 @@ class DashboardServer:
                 from actions.lab import analyze
                 labels = body.get("labels") or []
                 mode = body.get("mode") or "identify"
-                text = await asyncio.to_thread(analyze, labels, mode)
+                text = await asyncio.to_thread(analyze, labels, mode, body.get("caption") or "")
                 if text and self._speak_callback:
                     try:
                         self._speak_callback("Lies dem Nutzer diese Objekt-Analyse ruhig und "
