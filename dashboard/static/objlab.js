@@ -42,7 +42,7 @@
         .then(function (s) { v.srcObject = s; vid = v; v.onloadedmetadata = function () { v.play(); cb(); }; })
         .catch(onerr);
     };
-    tryCam({ video: { facingMode: { ideal: 'environment' }, width: 1280, height: 720 } },
+    tryCam({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } },
       function () { tryCam({ video: true }, function () { status('⚠️ Keine Kamera / kein Zugriff'); }); });
   }
 
@@ -106,7 +106,8 @@
           }).catch(function () { var el = document.getElementById('objlab-res'); if (el) el.textContent = 'Analyse fehlgeschlagen.'; });
       }
     };
-    if (captioner) grabCaption().then(run); else run('');   // frische Szenenbeschreibung, wenn verfügbar
+    if (captioner) { grabCaption().then(run); }
+    else { var el = document.getElementById('objlab-res'); if (el) el.textContent = '(Beschreibungs-KI lädt noch – Ergebnis kann ungenau sein) …'; run(''); }
   }
 
   function grabCaption() {
@@ -146,7 +147,7 @@
       var ac = (getComputedStyle(document.documentElement).getPropertyValue('--cy') || '#b06bff').trim();
       var found = [];
       preds.forEach(function (p) {
-        if (p.score < 0.4) return;
+        if (p.score < 0.6) return;
         var x = p.bbox[0] * sx, y = p.bbox[1] * sy, w = p.bbox[2] * sx, h = p.bbox[3] * sy;
         ctx.strokeStyle = ac; ctx.lineWidth = 2; ctx.strokeRect(x, y, w, h);
         var lbl = de(p.class);
@@ -166,7 +167,7 @@
           refresh();
         }).catch(function () {});
       }
-      if (captioner && !capBusy && now - lastCap > 5000) {   // Beschreibung frisch halten (Sprache)
+      if (captioner && !capBusy && now - lastCap > 3000) {   // Beschreibung häufig aktualisieren
         lastCap = now; capBusy = true;
         grabCaption().then(function () { capBusy = false; }).catch(function () { capBusy = false; });
       }
@@ -176,7 +177,9 @@
   }
   function refresh() {
     var all = allLabels();
-    status(all.length ? ('🔍 ' + all.slice(0, 5).join(', ')) : '🔍 nichts erkannt — näher/heller halten');
+    var txt = lastCaption ? ('👁 ' + lastCaption) :
+      (all.length ? ('🔍 ' + all.slice(0, 4).join(', ')) : '🔍 Objekt näher & heller vor die Kamera halten');
+    status(txt);
     var now = Date.now();
     if (now - lastPush > 2500) { lastPush = now;
       fetch('/api/lab-detect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ labels: all, caption: lastCaption }) }).catch(function () {}); }
@@ -196,9 +199,10 @@
           if (window.mobilenet) mobilenet.load().then(function (mm) { mobiModel = mm; }).catch(function () {});
           // Freies Bild-Beschreibungsmodell (Transformers.js) im Hintergrund → erkennt beliebige
           // Objekte inkl. Geld/Werkzeug. Einmaliger ~200 MB Download, danach offline & kostenlos.
+          status('🔍 bereit — Beschreibungs-KI lädt (einmalig)…');
           import(CAPCDN).then(function (mod) {
             if (mod.env) { mod.env.allowLocalModels = false; }
-            return mod.pipeline('image-to-text', 'Xenova/vit-gpt2-image-captioning', { quantized: true });
+            return mod.pipeline('image-to-text', 'Xenova/blip-image-captioning-base', { quantized: true });
           }).then(function (p) { captioner = p; }).catch(function () {});
           requestAnimationFrame(loop);
         }).catch(function () { status('⚠️ Erkennung konnte nicht laden (Internet?)'); });

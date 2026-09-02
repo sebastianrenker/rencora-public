@@ -15,13 +15,16 @@ _SYS = ("Du bist Rencora, ein technischer Experte, der Bauteile, Technik und All
 
 
 def _prompt(labels, mode, caption=""):
-    objs = ", ".join([l for l in (labels or []) if l]) or "das Objekt vor der Kamera"
-    scene = ""
+    objs = ", ".join([l for l in (labels or []) if l])
+    parts = []
     if caption:
-        scene = (" Eine automatische Bildbeschreibung (englisch, evtl. grob) lautet: \"" +
-                 caption + "\". Deute sie mit und benenne konkret, was zu sehen ist (auch Geld, "
-                 "Werkzeug, Elektronik usw.).")
-    base = "Vor der Kamera ist/sind: " + objs + "." + scene + " "
+        parts.append("Automatische Bildbeschreibung der Kamera (englisch): \"" + caption + "\".")
+    if objs:
+        parts.append("Ein einfacher Objekt-Detektor rät zusätzlich (KANN FALSCH sein): " + objs + ".")
+    ctx = " ".join(parts) if parts else "Vor der Kamera ist ein Objekt."
+    base = (ctx + " Bestimme daraus möglichst genau, was TATSÄCHLICH zu sehen ist (auch Geld, "
+            "Werkzeug, Elektronik, Bauteile). Widersprechen sich die Hinweise, vertraue der "
+            "Bildbeschreibung, nicht dem Detektor. Wenn du unsicher bist, sag das ehrlich. ")
     m = (mode or "identify").lower()
     if any(k in m for k in ("zerleg", "disassemb", "auseinander")):
         return base + ("Erkläre praxisnah, wie man das sicher zerlegt/auseinanderbaut: benötigtes "
