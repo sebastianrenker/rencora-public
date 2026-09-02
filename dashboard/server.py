@@ -1393,6 +1393,64 @@ class DashboardServer:
                 self._wake_callback()
             return JSONResponse({"ok": True})
 
+        # Stream-Deck-/Makro-Auslöser: ein einfacher lokaler GET (kein Token, nur localhost).
+        _SD_CMD = {
+            "weather": "Wie ist das Wetter?",
+            "news": "Fass mir die aktuellen Nachrichten kurz zusammen.",
+            "morning": "Gib mir mein Morgenbriefing.",
+            "look": "Was siehst du gerade vor der Kamera?",
+            "whatsapp": "Lies mir neue WhatsApp-Nachrichten vor.",
+            "translate_en": "Übersetzer-Modus: Übersetze ab jetzt alles, was ich sage, ins Englische.",
+            "tasks": "Was steht auf meiner Aufgabenliste?",
+            "weatheralert": "Ist gerade Unwetter angesagt?",
+            "music_play": "Spiel entspannte Musik im Hintergrund.",
+            "advisor": "Erklär mir das Dokument, das ich gerade zeige.",
+            "kino_on": "Kinomodus an.",
+            "kino_off": "Kinomodus aus.",
+        }
+
+        @app.get("/api/sd")
+        async def api_sd(request: Request, do: str = "", say: str = ""):
+            if not _local(request):
+                return JSONResponse({"error": "forbidden"}, status_code=403)
+            key = (do or "").strip().lower()
+            try:
+                if key == "wake":
+                    if self._wake_callback:
+                        self._wake_callback()
+                    return JSONResponse({"ok": True})
+                if key in ("continuous_on", "continuous_off"):
+                    if self._listen_mode_callback:
+                        self._listen_mode_callback(key == "continuous_on")
+                    return JSONResponse({"ok": True})
+                if key.startswith("music_"):
+                    import plugins.music as m
+                    p = m._player()
+                    if key == "music_skip":
+                        p.skip()
+                    elif key == "music_stop":
+                        p.stop()
+                    elif key == "music_vol_up":
+                        p.set_volume(min(100, getattr(p, "volume", 70) + 10))
+                    elif key == "music_vol_down":
+                        p.set_volume(max(0, getattr(p, "volume", 70) - 10))
+                    else:
+                        text = _SD_CMD.get(key, "")
+                        if text:
+                            self._command_queue.put_nowait(text)
+                    return JSONResponse({"ok": True})
+                if key.startswith("open_"):
+                    import plugins.interface as itf
+                    await asyncio.to_thread(itf.run, {"surface": key[5:]})
+                    return JSONResponse({"ok": True})
+                text = (say or "").strip() or _SD_CMD.get(key, "")
+                if text:
+                    self._command_queue.put_nowait(text)
+                    return JSONResponse({"ok": True, "sent": text})
+                return JSONResponse({"ok": False, "error": "unknown action"}, status_code=400)
+            except Exception as e:
+                return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
         @app.post("/api/listen-mode")
         async def listen_mode_ep(req: Request):
             if not _auth(req):
