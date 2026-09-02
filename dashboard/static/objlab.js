@@ -11,7 +11,7 @@
   var vid = null, overlay = null, cocoModel = null, mobiModel = null;
   var boxLabels = [], clsLabels = [], lastPush = 0, lastCls = 0, ws = null;
   var captioner = null, lastCaption = '', capBusy = false, lastCap = 0;
-  var CAPCDN = 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2';
+  var CAPCDN = 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/+esm';
   var TOKEN = (function () { try { return sessionStorage.getItem('jarvis_token') || ''; } catch (e) { return ''; } })();
 
   var DE = { person: 'Person', bottle: 'Flasche', cup: 'Tasse', 'cell phone': 'Handy', laptop: 'Laptop',

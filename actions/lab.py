@@ -22,9 +22,10 @@ def _prompt(labels, mode, caption=""):
     if objs:
         parts.append("Ein einfacher Objekt-Detektor rät zusätzlich (KANN FALSCH sein): " + objs + ".")
     ctx = " ".join(parts) if parts else "Vor der Kamera ist ein Objekt."
-    base = (ctx + " Bestimme daraus möglichst genau, was TATSÄCHLICH zu sehen ist (auch Geld, "
-            "Werkzeug, Elektronik, Bauteile). Widersprechen sich die Hinweise, vertraue der "
-            "Bildbeschreibung, nicht dem Detektor. Wenn du unsicher bist, sag das ehrlich. ")
+    base = (ctx + " Bestimme, was am wahrscheinlichsten zu sehen ist (auch Geld, Werkzeug, "
+            "Elektronik, Bauteile). Widersprechen sich die Hinweise, vertraue der Bildbeschreibung. "
+            "Gib IMMER eine konkrete beste Einschätzung ab und benenne das Objekt — frage NIEMALS "
+            "nach weiteren Beschreibungen. Bleibt Unsicherheit, sag kurz, was es am ehesten ist. ")
     m = (mode or "identify").lower()
     if any(k in m for k in ("zerleg", "disassemb", "auseinander")):
         return base + ("Erkläre praxisnah, wie man das sicher zerlegt/auseinanderbaut: benötigtes "
