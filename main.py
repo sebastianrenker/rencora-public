@@ -1664,6 +1664,7 @@ class JarvisLive:
             # WAKE button opens a listening window; the listen-mode toggle flips continuous mode
             self._dashboard.set_wake_callback(lambda: self._loop.call_soon_threadsafe(self._open_wake_window))
             self._dashboard.set_listen_mode_callback(self.set_continuous)
+            self._dashboard.set_speak_callback(self.plugin_say)   # Objekt-Labor spricht in Rencoras Stimme
             asyncio.create_task(self._dashboard.serve())
             # Runs for the whole lifetime, not just inside an active session
             asyncio.create_task(self._process_dashboard_commands())

@@ -468,6 +468,7 @@ class DashboardServer:
         self._command_queue               = asyncio.Queue()
         self._wake_callback               = None
         self._listen_mode_callback        = None
+        self._speak_callback              = None
         self._connect_callback            = None
         self._pending_keys: dict[str, float] = {}
         self._device_sessions: dict[str, dict] = {}  # device_token → {session_key}
@@ -541,6 +542,9 @@ class DashboardServer:
 
     def set_listen_mode_callback(self, fn) -> None:
         self._listen_mode_callback = fn
+
+    def set_speak_callback(self, fn) -> None:
+        self._speak_callback = fn   # fn(instruction:str) → Rencora speaks it in her voice
 
     def set_connect_callback(self, fn) -> None:
         self._connect_callback = fn
@@ -789,6 +793,26 @@ class DashboardServer:
                 labels = body.get("labels") or []
                 mode = body.get("mode") or "identify"
                 text = await asyncio.to_thread(analyze, labels, mode)
+                return JSONResponse({"text": text or ""})
+            except Exception as e:
+                return JSONResponse({"text": "", "error": str(e)}, status_code=500)
+
+        @app.post("/api/lab-speak")
+        async def api_lab_speak(request: Request):
+            if not _local(request):
+                return JSONResponse({"error": "forbidden"}, status_code=403)
+            try:
+                body = await request.json()
+                from actions.lab import analyze
+                labels = body.get("labels") or []
+                mode = body.get("mode") or "identify"
+                text = await asyncio.to_thread(analyze, labels, mode)
+                if text and self._speak_callback:
+                    try:
+                        self._speak_callback("Lies dem Nutzer diese Objekt-Analyse ruhig und "
+                                             "vollständig vor: " + text)
+                    except Exception:
+                        pass
                 return JSONResponse({"text": text or ""})
             except Exception as e:
                 return JSONResponse({"text": "", "error": str(e)}, status_code=500)
