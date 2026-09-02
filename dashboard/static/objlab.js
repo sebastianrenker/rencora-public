@@ -88,26 +88,34 @@
     document.getElementById('objlab-x').onclick = function () { resultBox.style.display = 'none'; try { speechSynthesis.cancel(); } catch (e) {} };
   }
 
+  function setRes(t) { var el = document.getElementById('objlab-res'); if (el) el.textContent = t; }
+  function grabFrame() {
+    if (!vid || vid.readyState < 2) return '';
+    try {
+      var w = 768, sc = w / (vid.videoWidth || w);
+      var c = document.createElement('canvas'); c.width = w; c.height = Math.round((vid.videoHeight || w) * sc);
+      c.getContext('2d').drawImage(vid, 0, 0, c.width, c.height);
+      return c.toDataURL('image/jpeg', 0.85);
+    } catch (e) { return ''; }
+  }
   function analyze(mode) {
-    showResult(mode, captioner ? 'Rencora beschreibt & analysiert…' : 'Rencora analysiert…');
-    var run = function (caption) {
-      var payload = JSON.stringify({ labels: allLabels(), caption: caption || lastCaption || '', mode: mode });
-      if (TOKEN) {   // JARVIS-Stimme: Groq analysiert (kostenlos), Rencora spricht es in ihrer Stimme
-        fetch('/api/lab-speak', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN }, body: payload })
-          .then(function (r) { return r.json(); }).then(function (d) {
-            var el = document.getElementById('objlab-res'); if (el) el.textContent = (d && d.text) || 'Konnte gerade nicht analysieren.';
-          }).catch(function () { var el = document.getElementById('objlab-res'); if (el) el.textContent = 'Analyse fehlgeschlagen.'; });
-      } else {       // Fallback: Text am Bildschirm + Browser-Stimme
-        fetch('/api/lab-analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload })
-          .then(function (r) { return r.json(); }).then(function (d) {
-            var t = (d && d.text) || 'Konnte gerade nicht analysieren.';
-            var el = document.getElementById('objlab-res'); if (el) el.textContent = t;
-            try { if (window.speechSynthesis) { var u = new SpeechSynthesisUtterance(t); u.lang = 'de-DE'; speechSynthesis.cancel(); speechSynthesis.speak(u); } } catch (e) {}
-          }).catch(function () { var el = document.getElementById('objlab-res'); if (el) el.textContent = 'Analyse fehlgeschlagen.'; });
-      }
-    };
-    if (captioner) { grabCaption().then(run); }
-    else { var el = document.getElementById('objlab-res'); if (el) el.textContent = '(Beschreibungs-KI lädt noch – Ergebnis kann ungenau sein) …'; run(''); }
+    showResult(mode, 'Rencora erkennt das Objekt…');
+    var img = grabFrame();
+    if (TOKEN && img) {   // GENAU: ein einzelnes Bild an Gemini-Vision (nur bei Knopfdruck → sparsam);
+      //                    Rencora spricht das Ergebnis in ihrer Stimme.
+      fetch('/api/lab-vision', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN },
+        body: JSON.stringify({ image: img, labels: allLabels(), caption: lastCaption || '', mode: mode }) })
+        .then(function (r) { return r.json(); }).then(function (d) { setRes((d && d.text) || 'Konnte gerade nicht analysieren.'); })
+        .catch(function () { setRes('Analyse fehlgeschlagen.'); });
+      return;
+    }
+    // Fallback ohne Assistent: frei (Detektor/Beschreibung) + Browser-Stimme
+    fetch('/api/lab-analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ labels: allLabels(), caption: lastCaption || '', mode: mode }) })
+      .then(function (r) { return r.json(); }).then(function (d) {
+        var t = (d && d.text) || 'Konnte gerade nicht analysieren.'; setRes(t);
+        try { if (window.speechSynthesis) { var u = new SpeechSynthesisUtterance(t); u.lang = 'de-DE'; speechSynthesis.cancel(); speechSynthesis.speak(u); } } catch (e) {}
+      }).catch(function () { setRes('Analyse fehlgeschlagen.'); });
   }
 
   function grabCaption() {
@@ -167,22 +175,17 @@
           refresh();
         }).catch(function () {});
       }
-      if (captioner && !capBusy && now - lastCap > 3000) {   // Beschreibung häufig aktualisieren
-        lastCap = now; capBusy = true;
-        grabCaption().then(function () { capBusy = false; }).catch(function () { capBusy = false; });
-      }
       refresh();
       requestAnimationFrame(loop);
     }).catch(function () { requestAnimationFrame(loop); });
   }
   function refresh() {
     var all = allLabels();
-    var txt = lastCaption ? ('👁 ' + lastCaption) :
-      (all.length ? ('🔍 ' + all.slice(0, 4).join(', ')) : '🔍 Objekt näher & heller vor die Kamera halten');
-    status(txt);
+    status(all.length ? ('🔍 ' + all.slice(0, 4).join(', ') + ' — Knopf für genaue Analyse')
+      : '🔍 Objekt vor die Kamera halten, dann einen Knopf drücken');
     var now = Date.now();
     if (now - lastPush > 2500) { lastPush = now;
-      fetch('/api/lab-detect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ labels: all, caption: lastCaption }) }).catch(function () {}); }
+      fetch('/api/lab-detect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ labels: all }) }).catch(function () {}); }
   }
 
   function loadScript(src) { return new Promise(function (res, rej) { var s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); }); }
@@ -199,11 +202,6 @@
           if (window.mobilenet) mobilenet.load().then(function (mm) { mobiModel = mm; }).catch(function () {});
           // Freies Bild-Beschreibungsmodell (Transformers.js) im Hintergrund → erkennt beliebige
           // Objekte inkl. Geld/Werkzeug. Einmaliger ~200 MB Download, danach offline & kostenlos.
-          status('🔍 bereit — Beschreibungs-KI lädt (einmalig)…');
-          import(CAPCDN).then(function (mod) {
-            if (mod.env) { mod.env.allowLocalModels = false; }
-            return mod.pipeline('image-to-text', 'Xenova/blip-image-captioning-base', { quantized: true });
-          }).then(function (p) { captioner = p; }).catch(function () {});
           requestAnimationFrame(loop);
         }).catch(function () { status('⚠️ Erkennung konnte nicht laden (Internet?)'); });
     });

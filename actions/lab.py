@@ -49,6 +49,49 @@ def analyze(labels, mode="identify", caption=""):
         return ""
 
 
+def _vision_prompt(mode):
+    m = (mode or "identify").lower()
+    lead = ("Auf dem Kamerabild ist ein Objekt/Bauteil/Gegenstand. Bestimme GENAU und konkret, "
+            "was es ist — auch Geld/Geldscheine, Werkzeug, Elektronik, Bauteile. Antworte auf "
+            "Deutsch und gib immer eine klare Antwort. ")
+    if any(k in m for k in ("zerleg", "auseinander", "disassemb")):
+        return lead + "Erkläre dann, wie man es sicher zerlegt: Werkzeug, Schritte, worauf achten."
+    if any(k in m for k in ("bau", "zusammen", "assemb", "aufbau")):
+        return lead + "Erkläre dann Schritt für Schritt, wie man es zusammenbaut/aufbaut."
+    if any(k in m for k in ("analys", "analyze")):
+        return lead + "Analysiere es technisch: Funktion, Eigenschaften/Werte, typische Probleme."
+    return lead + "Sag knapp, was es ist, wofür es dient, und ein bis zwei nützliche Tipps."
+
+
+def vision_analyze(img_bytes, mode="identify"):
+    """Genaue Bild-Analyse via Gemini-Vision (nur auf Knopfdruck → sparsam). Retry bei
+    transientem 503 (Überlastung). Leerer String bei endgültigem Fehler."""
+    try:
+        import io
+        import time
+        from google import genai
+        from actions.file_processor import _get_api_key
+        from PIL import Image
+        img = Image.open(io.BytesIO(img_bytes))
+        client = genai.Client(api_key=_get_api_key())
+        prompt = _vision_prompt(mode)
+        last = None
+        for attempt in range(3):
+            try:
+                # gemini-2.5-flash: aktuell verfügbar (flash-latest war überlastet)
+                return (client.models.generate_content(
+                    model="gemini-2.5-flash", contents=[prompt, img]).text or "").strip()
+            except Exception as e:
+                last = e
+                if any(k in str(e) for k in ("503", "UNAVAILABLE", "overloaded", "high demand", "429", "RESOURCE_EXHAUSTED")):
+                    time.sleep(2 * (attempt + 1))
+                    continue
+                raise
+        raise last
+    except Exception:
+        return ""
+
+
 def save_labels(labels, caption=""):
     try:
         _CACHE.write_text(json.dumps({"labels": labels or [], "caption": caption or "", "at": time.time()},

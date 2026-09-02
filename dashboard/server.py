@@ -797,6 +797,30 @@ class DashboardServer:
             except Exception as e:
                 return JSONResponse({"text": "", "error": str(e)}, status_code=500)
 
+        @app.post("/api/lab-vision")
+        async def api_lab_vision(request: Request):
+            if not _local(request):
+                return JSONResponse({"error": "forbidden"}, status_code=403)
+            try:
+                body = await request.json()
+                mode = body.get("mode") or "identify"
+                from actions.vision import decode_dataurl
+                from actions.lab import vision_analyze, analyze
+                img = decode_dataurl(body.get("image") or "")
+                text = ""
+                if img:
+                    text = await asyncio.to_thread(vision_analyze, img, mode)
+                if not text:   # Gemini nicht verfügbar/leer → freier Fallback (Labels/Beschreibung)
+                    text = await asyncio.to_thread(analyze, body.get("labels") or [], mode, body.get("caption") or "")
+                if text and self._speak_callback:
+                    try:
+                        self._speak_callback("Lies dem Nutzer diese Objekt-Analyse ruhig und vollständig vor: " + text)
+                    except Exception:
+                        pass
+                return JSONResponse({"text": text or ""})
+            except Exception as e:
+                return JSONResponse({"text": "", "error": str(e)}, status_code=500)
+
         @app.post("/api/lab-speak")
         async def api_lab_speak(request: Request):
             if not _local(request):
