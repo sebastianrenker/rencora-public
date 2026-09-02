@@ -483,6 +483,7 @@ class DashboardServer:
         self._wall_html                   = _read("wall.html")     # Rencora Info-Wall (Wetter/News/Karte)
         self._globe_html                  = _read("globe.html")    # Rencora 3D-Satellitenglobus
         self._status_html                 = _read("status.html")   # Rencora System-Status / Diagnose
+        self._lab_html                    = _read("lab.html")       # Rencora Objekt-Labor (Kamera-Scanner)
         self._setup_html                  = _read("setup.html")    # first-run setup (key + name)
         self._tv_html                     = _read("tv.html")       # Fire-TV / 10-foot HUD (read-only)
         self._advisor_html                = _read("advisor.html")  # document advisor HUD
@@ -717,6 +718,10 @@ class DashboardServer:
         async def status_page():
             return HTMLResponse(self._status_html)
 
+        @app.get("/lab", response_class=HTMLResponse)
+        async def lab_page():
+            return HTMLResponse(self._lab_html)
+
         @app.get("/api/weather")
         async def api_weather(request: Request):
             if not _local(request):
@@ -761,6 +766,37 @@ class DashboardServer:
                 return JSONResponse({"summary": (s or "").strip()})
             except Exception as e:
                 return JSONResponse({"summary": "", "error": str(e)})
+
+        @app.post("/api/lab-detect")
+        async def api_lab_detect(request: Request):
+            if not _local(request):
+                return JSONResponse({"error": "forbidden"}, status_code=403)
+            try:
+                body = await request.json()
+                from actions.lab import save_labels
+                save_labels(body.get("labels") or [])
+                return JSONResponse({"ok": True})
+            except Exception as e:
+                return JSONResponse({"error": str(e)}, status_code=500)
+
+        @app.post("/api/lab-analyze")
+        async def api_lab_analyze(request: Request):
+            if not _local(request):
+                return JSONResponse({"error": "forbidden"}, status_code=403)
+            try:
+                body = await request.json()
+                from actions.lab import analyze
+                labels = body.get("labels") or []
+                mode = body.get("mode") or "identify"
+                text = await asyncio.to_thread(analyze, labels, mode)
+                return JSONResponse({"text": text or ""})
+            except Exception as e:
+                return JSONResponse({"text": "", "error": str(e)}, status_code=500)
+
+        @app.get("/static/objlab.js")
+        async def serve_objlab_js():
+            return FileResponse(str(STATIC_DIR / "objlab.js"),
+                                media_type="application/javascript")
 
         @app.get("/api/globe-config")
         async def api_globe_config(request: Request):

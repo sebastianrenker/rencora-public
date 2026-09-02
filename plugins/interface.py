@@ -39,6 +39,7 @@ _ROUTES = {
     "globe": "/globe", "globus": "/globe", "weltkugel": "/globe", "erde": "/globe", "satellit": "/globe", "satellitenkarte": "/globe", "karte": "/globe",
     "globus-vollbild": "/globe?ambient=1", "globus-ambient": "/globe?ambient=1", "ambient": "/globe?ambient=1", "vollbild": "/globe?ambient=1", "beamer": "/globe?ambient=1",
     "status": "/status", "systemstatus": "/status", "diagnose": "/status", "zustand": "/status",
+    "lab": "/lab", "labor": "/lab", "objektlabor": "/lab", "objekt-labor": "/lab", "scanner": "/lab", "objekt": "/lab", "bauteil": "/lab", "bauteile": "/lab",
     "advisor": "/advisor", "dokument": "/advisor", "berater": "/advisor", "arzt": "/advisor", "anwalt": "/advisor", "formular": "/advisor",
     "tv": "/tv", "fernseher": "/tv", "firetv": "/tv",
     "brain": "/brain", "hirn": "/brain", "gehirn": "/brain", "wissen": "/brain",
@@ -70,7 +71,8 @@ def run(parameters: dict, player=None, session_memory=None) -> str:
              "/holo3d": "den 3D-Tester", "/holo": "das Panel", "/advisor": "den Advisor",
              "/tv": "das TV-HUD", "/brain": "das Brain", "/remote": "die Fernbedienung",
              "/settings": "die Einstellungen", "/wall": "die Info-Wall", "/globe": "den Globus",
-             "/globe?ambient=1": "den Globus im Ambient-Vollbild", "/status": "den Systemstatus"}
+             "/globe?ambient=1": "den Globus im Ambient-Vollbild", "/status": "den Systemstatus",
+             "/lab": "das Objekt-Labor"}
     try:
         b = _find_browser()
         if b:
