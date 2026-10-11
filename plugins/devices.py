@@ -78,7 +78,6 @@ def _arp_count():
     try:
         out = subprocess.run(["arp", "-a"], capture_output=True, text=True, timeout=6,
                              creationflags=0x08000000).stdout
-        macs = re.findall(r"([0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F]{2}", out)
         return len(set(m for m in re.findall(r"(?:[0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F]{2}", out)))
     except Exception:
         return 0
