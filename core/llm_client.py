@@ -25,6 +25,8 @@ from pathlib import Path
 from typing import Callable, Generator
 
 import requests
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 # Matches a sentence boundary: [.!?] followed by whitespace, or a blank line.
 # Avoids splitting on decimals (3.5) because those have no space after the dot.
@@ -313,7 +315,7 @@ def call_llm(
                     "tool_calls": msg.get("tool_calls") or [],
                 }
             except Exception:
-                pass
+                _swallow_log.debug("ignored error", exc_info=True)
         raise RuntimeError(
             f"Cannot connect to Ollama at {url}. "
             "Make sure Ollama is installed and run: ollama serve"
@@ -360,7 +362,7 @@ def call_llm_text(
                 resp.raise_for_status()
                 return (resp.json().get("message", {}).get("content") or "").strip()
             except Exception:
-                pass
+                _swallow_log.debug("ignored error", exc_info=True)
         raise RuntimeError(
             f"Cannot connect to Ollama at {url}. "
             "Make sure Ollama is installed and run: ollama serve"
@@ -460,7 +462,7 @@ def _stream_openai(
                 try:
                     args = json.loads(args)
                 except Exception:
-                    pass   # leave as raw string; _execute_tool handles it
+                    _swallow_log.debug("ignored error", exc_info=True)   # leave as raw string; _execute_tool handles it
                 tool_calls.append({
                     "id":       frag["id"],
                     "function": {"name": frag["function"]["name"], "arguments": args},

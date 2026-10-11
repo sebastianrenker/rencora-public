@@ -2,6 +2,8 @@ import time
 import subprocess
 import platform
 import shutil
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 try:
     import psutil
@@ -98,7 +100,7 @@ def _launch_windows(app_name: str) -> bool:
             time.sleep(1.0)
             return True
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
 
     try:
         import pyautogui
@@ -127,7 +129,7 @@ def _launch_macos(app_name: str) -> bool:
             time.sleep(1.0)
             return True
     except Exception:
-        pass
+        _swallow_log.debug("ignored error", exc_info=True)
 
     try:
         result = subprocess.run(
@@ -138,7 +140,7 @@ def _launch_macos(app_name: str) -> bool:
             time.sleep(1.0)
             return True
     except Exception:
-        pass
+        _swallow_log.debug("ignored error", exc_info=True)
 
     binary = shutil.which(app_name) or shutil.which(app_name.lower())
     if binary:
@@ -151,7 +153,7 @@ def _launch_macos(app_name: str) -> bool:
             time.sleep(1.0)
             return True
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
 
     try:
         import pyautogui
@@ -202,7 +204,7 @@ def _launch_linux(app_name: str) -> bool:
             time.sleep(1.0)
             return True
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
 
     try:
         subprocess.run(
@@ -211,7 +213,7 @@ def _launch_linux(app_name: str) -> bool:
         )
         return True
     except Exception:
-        pass
+        _swallow_log.debug("ignored error", exc_info=True)
 
     for desktop_name in [
         app_name.lower(),
@@ -226,7 +228,7 @@ def _launch_linux(app_name: str) -> bool:
             if result.returncode == 0:
                 return True
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
 
     return False
 

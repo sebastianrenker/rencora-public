@@ -16,6 +16,8 @@ import os
 import sqlite3
 import time
 from pathlib import Path
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 BASE = Path(__file__).resolve().parent
 DB_PATH = BASE / "config" / "brain.db"
@@ -74,7 +76,7 @@ def _github_username():
             if u:
                 return u.strip()
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
     return ""
 
 
@@ -170,7 +172,7 @@ def scan(incremental=False, do_github=True):
             if gc:
                 counts["github"] = gc
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
     con.commit()
     con.close()
     return counts
@@ -192,7 +194,7 @@ def start_auto(local_interval=600, github_interval=3300):
             if stats().get("total", 0) == 0:
                 scan(incremental=False, do_github=True)
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
         last_gh = _t.time()
         while True:
             _t.sleep(local_interval)
@@ -202,7 +204,7 @@ def start_auto(local_interval=600, github_interval=3300):
                 if do_gh:
                     last_gh = _t.time()
             except Exception:
-                pass
+                _swallow_log.debug("ignored error", exc_info=True)
 
     threading.Thread(target=_loop, daemon=True).start()
 
@@ -251,7 +253,7 @@ def _scan_github(con):
                                     (name + "/" + e.get("path", ""), path, fn, "github"))
                         added += 1
                 except Exception:
-                    pass
+                    _swallow_log.debug("ignored error", exc_info=True)
         commits = _gh("https://api.github.com/repos/%s/%s/commits?per_page=30" % (user, name))
         if commits and isinstance(commits, list):
             for c in commits:
@@ -272,7 +274,7 @@ def _scan_github(con):
                                     ("[" + name + " " + date + "] " + msg, path, short, "github"))
                         added += 1
                 except Exception:
-                    pass
+                    _swallow_log.debug("ignored error", exc_info=True)
     return added
 
 
@@ -297,7 +299,7 @@ def search(query, limit=8):
             for name, path, source, snip in rows:
                 out.append({"name": name, "path": path, "source": source, "snippet": snip})
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
     con.close()
     return out
 

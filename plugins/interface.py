@@ -9,6 +9,8 @@ import os
 import shutil
 import subprocess
 import urllib.parse
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 PLUGIN = {
     "name": "open_interface",
@@ -88,5 +90,5 @@ def run(parameters: dict, player=None, session_memory=None) -> str:
         try:
             player.write_log("JARVIS: " + out)
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
     return out

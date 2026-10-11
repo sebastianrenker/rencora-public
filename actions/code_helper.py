@@ -4,6 +4,8 @@ import json
 import re
 import time
 from pathlib import Path
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 
 def get_base_dir():
@@ -498,7 +500,7 @@ Be specific and actionable. If you see an error message, quote it exactly."""
         try:
             screenshot_path.unlink()
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
 
         if file_path and file_content:
 
@@ -517,7 +519,7 @@ Be specific and actionable. If you see an error message, quote it exactly."""
         try:
             screenshot_path.unlink()
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
         return f"Screen analysis failed: {e}"
 
 

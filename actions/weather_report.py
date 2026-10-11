@@ -1,5 +1,7 @@
 import webbrowser
 from urllib.parse import quote_plus
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 
 def weather_action(
@@ -37,7 +39,7 @@ def weather_action(
         try:
             session_memory.set_last_search(query=search_query, response=msg)
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
 
     return msg
 
@@ -48,4 +50,4 @@ def _log(message: str, player=None) -> None:
         try:
             player.write_log(f"JARVIS: {message}")
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)

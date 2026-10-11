@@ -7,6 +7,8 @@ Engine: Mark-LI by FatihMakes (CC BY-NC 4.0) — siehe NOTICE.md.
 import json
 import time
 from pathlib import Path
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 _ALARMS = Path(__file__).resolve().parent.parent / "config" / "alarms.json"
 
@@ -48,7 +50,7 @@ def run(parameters: dict, player=None, session_memory=None) -> str:
         parts.append(f"Wetter in {w.get('city','')}: {w.get('label','')}, aktuell {round(w.get('temp') or 0)} Grad"
                      + (f", heute bis {round(hi)} Grad" if hi is not None else "") + ".")
     except Exception:
-        pass
+        _swallow_log.debug("ignored error", exc_info=True)
 
     # Termine / Wecker heute
     al = _today_alarms()
@@ -64,12 +66,12 @@ def run(parameters: dict, player=None, session_memory=None) -> str:
         if news and "konnte" not in news.lower()[:30]:
             parts.append("Kurz die Nachrichten: " + news)
     except Exception:
-        pass
+        _swallow_log.debug("ignored error", exc_info=True)
 
     out = " ".join(parts) if parts else "Ich konnte gerade kein Briefing erstellen."
     if player:
         try:
             player.write_log("JARVIS: Morgenbriefing")
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
     return out

@@ -10,6 +10,8 @@ Engine: Mark-LI by FatihMakes (CC BY-NC 4.0) — see NOTICE.md.
 """
 import json
 from pathlib import Path
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 try:
     import requests
@@ -96,7 +98,7 @@ def text_with_fallback(gemini_call, prompt, system="Du bist ein praeziser, hilfr
         if txt:
             return (txt, "gemini")
     except Exception:
-        pass
+        _swallow_log.debug("ignored error", exc_info=True)
     alt = grok_complete(prompt, system)
     return (alt, "grok") if alt else ("", "none")
 
@@ -132,5 +134,5 @@ def run(parameters: dict, player=None, session_memory=None) -> str:
         try:
             player.write_log("JARVIS(Grok): " + out[:300])
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
     return out

@@ -6,6 +6,8 @@ import time
 import subprocess
 import platform
 from pathlib import Path
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 try:
     import pyautogui
@@ -52,7 +54,7 @@ def _get_macos_wifi_interface() -> str:
                     if lines[j].startswith("Device:"):
                         return lines[j].split(":", 1)[1].strip()
     except Exception:
-        pass
+        _swallow_log.debug("ignored error", exc_info=True)
     return "en0" 
 
 def volume_up():
@@ -211,14 +213,14 @@ def snap_left():
         try:
             subprocess.run(["open", "-a", "Rectangle"], capture_output=True, timeout=1)
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
         pyautogui.hotkey("ctrl", "option", "left")
     else:  # Linux
         try:
             subprocess.run(["wmctrl", "-r", ":ACTIVE:", "-e", "0,0,0,960,1080"],
                 capture_output=True)
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
 
 def snap_right():
     if _OS == "Windows":
@@ -227,14 +229,14 @@ def snap_right():
         try:
             subprocess.run(["open", "-a", "Rectangle"], capture_output=True, timeout=1)
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
         pyautogui.hotkey("ctrl", "option", "right")
     else:  # Linux
         try:
             subprocess.run(["wmctrl", "-r", ":ACTIVE:", "-e", "0,960,0,960,1080"],
                 capture_output=True)
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
 
 def switch_window():
     if _OS == "Darwin": pyautogui.hotkey("command", "tab")

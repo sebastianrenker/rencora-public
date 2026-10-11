@@ -16,6 +16,8 @@ import os
 import ssl
 import time
 from pathlib import Path
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 _CFG = Path(__file__).resolve().parent.parent / "config" / "printer.json"
 
@@ -55,7 +57,7 @@ def _normal_list():
         try:
             default = win32print.GetDefaultPrinter()
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
         if not printers:
             return "Ich finde keine installierten Drucker."
         marked = [(n + " (Standard)" if n == default else n) for n in printers]
@@ -154,7 +156,7 @@ def _bambu_call(want_report=False, command=None):
         try:
             result["report"] = json.loads(msg.payload.decode("utf-8"))
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
 
     try:
         cli = mqtt.Client()
@@ -238,5 +240,5 @@ def run(parameters: dict, player=None, session_memory=None) -> str:
         try:
             player.write_log("JARVIS: " + out)
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
     return out

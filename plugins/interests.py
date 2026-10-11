@@ -8,6 +8,8 @@ Engine: Mark-LI by FatihMakes (CC BY-NC 4.0) — see NOTICE.md.
 """
 import json
 from pathlib import Path
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 _FILE = Path(__file__).resolve().parent.parent / "config" / "interests.json"
 
@@ -73,5 +75,5 @@ def run(parameters: dict, player=None, session_memory=None) -> str:
         try:
             player.write_log("JARVIS: " + out)
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
     return out

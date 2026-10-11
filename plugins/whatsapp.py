@@ -18,6 +18,8 @@ import subprocess
 import threading
 import time
 import urllib.parse
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 _SAY = {"fn": None, "log": None}
 _STATE = {"on": False, "thread": None, "last_sender": ""}
@@ -61,10 +63,10 @@ def prime(player):
 def _say(instruction, logline=None):
     if _SAY.get("log") and logline:
         try: _SAY["log"]("JARVIS: " + logline)
-        except Exception: pass
+        except Exception: _swallow_log.debug("ignored error", exc_info=True)
     if _SAY.get("fn"):
         try: _SAY["fn"](instruction)
-        except Exception: pass
+        except Exception: _swallow_log.debug("ignored error", exc_info=True)
 
 
 def _ns():
@@ -104,9 +106,9 @@ async def _fetch():
             if binding:
                 for el in binding.get_text_elements():
                     try: texts.append(el.text)
-                    except Exception: pass
+                    except Exception: _swallow_log.debug("ignored error", exc_info=True)
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
         out.append((int(n.id), app, texts))
     return (True, out)
 
@@ -181,7 +183,7 @@ def run(parameters: dict, player=None, session_memory=None) -> str:
             try:
                 os.startfile("whatsapp://")
             except Exception:
-                pass
+                _swallow_log.debug("ignored error", exc_info=True)
             who = contact or _STATE.get("last_sender") or "den passenden Chat"
             return (f"Deine Antwort liegt in der Zwischenablage und WhatsApp ist offen — öffne {who}, "
                     f"füge sie mit Strg+V ein und sende. (Aus Sicherheit sende ich nicht automatisch.)")

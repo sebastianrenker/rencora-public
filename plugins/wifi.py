@@ -21,6 +21,8 @@ import time
 from collections import Counter
 from datetime import datetime, timedelta
 from pathlib import Path
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 _FILE = Path(__file__).resolve().parent.parent / "config" / "wifi_events.json"
 _BUD = Path(__file__).resolve().parent.parent / "config" / "net_budget.json"
@@ -82,7 +84,7 @@ def _iface():
             try:
                 signal = int(v.replace("%", "").strip())
             except Exception:
-                pass
+                _swallow_log.debug("ignored error", exc_info=True)
         elif k in ("state", "status", "zustand"):
             state = v.lower()
     connected = bool(ssid) or (state is not None and ("connect" in (state or "") or "verbund" in (state or "")))
@@ -122,7 +124,7 @@ def _append(ev):
         _FILE.write_text(json.dumps({"events": events[-_MAX_EVENTS:]}, ensure_ascii=False, indent=2),
                         encoding="utf-8")
     except Exception:
-        pass
+        _swallow_log.debug("ignored error", exc_info=True)
 
 
 def _announce(instruction, logline):
@@ -131,13 +133,13 @@ def _announce(instruction, logline):
         try:
             log("JARVIS: " + logline)
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
     say = _SAY.get("fn")
     if say:
         try:
             say(instruction)
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
 
 
 def _default_bud():
@@ -160,7 +162,7 @@ def _save_bud(cfg):
     try:
         _BUD.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
     except Exception:
-        pass
+        _swallow_log.debug("ignored error", exc_info=True)
 
 
 def _learn_cutoff():
@@ -274,7 +276,7 @@ def _watch():
                                   f"WLAN '{last_ssid}' ohne Internet seit {now}.")
                     prev = pending
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
         time.sleep(_INTERVAL)
 
 
@@ -370,5 +372,5 @@ def run(parameters: dict, player=None, session_memory=None) -> str:
         try:
             player.write_log("JARVIS: " + out)
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
     return out

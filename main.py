@@ -1,6 +1,8 @@
 import platform as _platform
 import subprocess as _subprocess
 import sys as _sys
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 # ── Make stdout/stderr UTF-8 tolerant ────────────────────────────────────────
 # On non-UTF-8 Windows consoles (cp1254/cp1252/cp936...) any print() containing
@@ -12,7 +14,7 @@ for _stream in (_sys.stdout, _sys.stderr):
     try:
         _stream.reconfigure(encoding="utf-8", errors="replace")
     except Exception:
-        pass   # frozen builds may have no real stream attached
+        _swallow_log.debug("ignored error", exc_info=True)   # frozen builds may have no real stream attached
 
 # ── Nuclear: force CREATE_NO_WINDOW on EVERY subprocess call on Windows ───────
 # This patches Popen itself, so no per-file flag is needed anywhere.
@@ -627,7 +629,7 @@ class JarvisLive:
             self._continuous = bool(d.get("continuous", False))
             self._wake_lang = str(d.get("model_lang") or "en-us").strip() or "en-us"
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
 
     def _ensure_vosk(self):
         """Lazy-load the local Vosk wake recognizer. On ANY failure it stays off and we
@@ -656,7 +658,7 @@ class JarvisLive:
                     lambda: asyncio.create_task(self._dashboard.broadcast(
                         {"type": "sys", "text": "Dauerhaftes Zuhören " + ("AN" if on else "AUS")})))
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
 
     def _open_wake_window(self) -> None:
         self._wake_open = True
@@ -675,7 +677,7 @@ class JarvisLive:
                     dash.broadcast({"type": "play_video", "videoId": video_id, "title": title}), loop)
                 return True
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
         return False
 
     def plugin_globe_fly(self, lat, lon, name: str = "", zoom=None) -> bool:
@@ -692,7 +694,7 @@ class JarvisLive:
                                     "name": name, "zoom": zoom}), loop)
                 return True
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
         return False
 
     def plugin_say(self, instruction: str) -> None:
@@ -763,7 +765,7 @@ class JarvisLive:
                     asyncio.run_coroutine_threadsafe(
                         dash.broadcast({"type": "speaking", "value": bool(value)}), loop)
             except Exception:
-                pass
+                _swallow_log.debug("ignored error", exc_info=True)
 
     def interrupt(self) -> None:
         """Stop JARVIS mid-speech: drain queued audio and open mic immediately."""
@@ -1080,7 +1082,7 @@ class JarvisLive:
                                 turn_complete=True,
                             )
                         except Exception:
-                            pass
+                            _swallow_log.debug("ignored error", exc_info=True)
                     await asyncio.sleep(1.5)
                     import os as _os
                     _os._exit(0)

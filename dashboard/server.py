@@ -19,6 +19,8 @@ import socket
 import string
 import time
 from pathlib import Path
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 _DEPS_OK = False
 try:
@@ -35,7 +37,7 @@ try:
     from fastapi import UploadFile, File as FastAPIFile
     _UPLOAD_OK = True
 except Exception:
-    pass
+    _swallow_log.debug("ignored error", exc_info=True)
 
 BASE_DIR    = Path(__file__).resolve().parent.parent
 STATIC_DIR  = Path(__file__).parent / "static"
@@ -54,7 +56,7 @@ def _make_uploads_dir() -> Path:
             candidate.mkdir(parents=True, exist_ok=True)
             return candidate
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
     return BASE_DIR / "uploads"
 
 
@@ -179,7 +181,7 @@ def _ensure_network_access(port: int) -> None:
             try:
                 os.close(fd)
             except Exception:
-                pass
+                _swallow_log.debug("ignored error", exc_info=True)
             return
 
         # ── Try running directly (succeeds when already admin) ────────────────
@@ -192,10 +194,10 @@ def _ensure_network_access(port: int) -> None:
                 try:
                     os.unlink(bat_path)
                 except Exception:
-                    pass
+                    _swallow_log.debug("ignored error", exc_info=True)
                 return
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
 
         # ── ShellExecuteW: native UAC elevation (most reliable on Windows) ────
         # ShellExecuteW with verb "runas" always shows the UAC dialog regardless
@@ -229,7 +231,7 @@ def _ensure_network_access(port: int) -> None:
                 try:
                     os.unlink(path)
                 except Exception:
-                    pass
+                    _swallow_log.debug("ignored error", exc_info=True)
             threading.Thread(target=_cleanup, args=(bat_path,), daemon=True).start()
         return
 
@@ -258,7 +260,7 @@ def _ensure_network_access(port: int) -> None:
                 timeout=60,
             )
         except Exception:
-            pass  # macOS firewall is off by default — silent failure is fine
+            _swallow_log.debug("ignored error", exc_info=True)  # macOS firewall is off by default — silent failure is fine
         return
 
     # ── Linux ─────────────────────────────────────────────────────────────────
@@ -269,7 +271,7 @@ def _ensure_network_access(port: int) -> None:
                 if r.returncode == 0:
                     return True
             except Exception:
-                pass
+                _swallow_log.debug("ignored error", exc_info=True)
         return False
 
     try:  # ufw
@@ -340,7 +342,7 @@ def _local_ip() -> str:
             if not ip.startswith("127."):
                 return ip
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
 
     # Method 2: hostname resolution (works offline on most systems)
     try:
@@ -348,7 +350,7 @@ def _local_ip() -> str:
         if not ip.startswith("127."):
             return ip
     except Exception:
-        pass
+        _swallow_log.debug("ignored error", exc_info=True)
 
     # Method 3: enumerate all interfaces (fully offline, no external deps)
     try:
@@ -357,7 +359,7 @@ def _local_ip() -> str:
             if not ip.startswith("127.") and not ip.startswith("169.254."):
                 return ip
     except Exception:
-        pass
+        _swallow_log.debug("ignored error", exc_info=True)
 
     return "127.0.0.1"
 
@@ -411,7 +413,7 @@ def _ensure_certs() -> bool:
             if not lan.startswith("127."):
                 alt.append(x509.IPAddress(ipaddress.IPv4Address(lan)))
         except Exception:
-            pass          # no LAN address resolvable — localhost entries still work
+            _swallow_log.debug("ignored error", exc_info=True)          # no LAN address resolvable — localhost entries still work
 
         # Timezone-aware UTC: datetime.utcnow() is deprecated from Python 3.12 on,
         # and the builder normalises aware values to UTC itself.
@@ -440,7 +442,7 @@ def _ensure_certs() -> bool:
             import os as _os
             _os.chmod(key_p, 0o600)   # best effort — largely a no-op on Windows
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
 
         print(f"[Dashboard] Generated a self-signed certificate for this machine: {certs}")
         return True
@@ -816,7 +818,7 @@ class DashboardServer:
                     try:
                         self._speak_callback("Lies dem Nutzer diese Objekt-Analyse ruhig und vollständig vor: " + text)
                     except Exception:
-                        pass
+                        _swallow_log.debug("ignored error", exc_info=True)
                 return JSONResponse({"text": text or ""})
             except Exception as e:
                 return JSONResponse({"text": "", "error": str(e)}, status_code=500)
@@ -836,7 +838,7 @@ class DashboardServer:
                         self._speak_callback("Lies dem Nutzer diese Objekt-Analyse ruhig und "
                                              "vollständig vor: " + text)
                     except Exception:
-                        pass
+                        _swallow_log.debug("ignored error", exc_info=True)
                 return JSONResponse({"text": text or ""})
             except Exception as e:
                 return JSONResponse({"text": "", "error": str(e)}, status_code=500)
@@ -889,7 +891,7 @@ class DashboardServer:
             try:
                 _TASKS_FILE.write_text(_j.dumps({"tasks": tasks}, ensure_ascii=False, indent=2), encoding="utf-8")
             except Exception:
-                pass
+                _swallow_log.debug("ignored error", exc_info=True)
 
         @app.get("/api/tasks")
         async def api_tasks_get(request: Request):
@@ -930,7 +932,7 @@ class DashboardServer:
             try:
                 gemini = bool(_j.loads((base / "config" / "api_keys.json").read_text(encoding="utf-8")).get("gemini_api_key"))
             except Exception:
-                pass
+                _swallow_log.debug("ignored error", exc_info=True)
             groq_on, provider = False, ""
             try:
                 from plugins.grok import is_configured, _provider
@@ -938,23 +940,23 @@ class DashboardServer:
                 if groq_on:
                     provider = _provider()[3]
             except Exception:
-                pass
+                _swallow_log.debug("ignored error", exc_info=True)
             wifi_state = "?"
             try:
                 from plugins.wifi import _probe
                 wifi_state = (await asyncio.to_thread(_probe))[0]
             except Exception:
-                pass
+                _swallow_log.debug("ignored error", exc_info=True)
             plug = 0
             try:
                 plug = len([p for p in (base / "plugins").glob("*.py") if not p.name.startswith("_")])
             except Exception:
-                pass
+                _swallow_log.debug("ignored error", exc_info=True)
             owner = ""
             try:
                 owner = (_j.loads((base / "config" / "owner.json").read_text(encoding="utf-8")).get("name") or "").split()[0]
             except Exception:
-                pass
+                _swallow_log.debug("ignored error", exc_info=True)
             return JSONResponse({"gemini": gemini, "groq": groq_on, "provider": provider,
                                  "wifi": wifi_state, "plugins": plug, "owner": owner})
 
@@ -1019,7 +1021,7 @@ class DashboardServer:
                         out.append({"name": f.stem, "file": f.name,
                                     "url": "/models/" + f.name})
             except Exception:
-                pass
+                _swallow_log.debug("ignored error", exc_info=True)
             return JSONResponse(out)
 
         @app.get("/models/{filename}")
@@ -1212,11 +1214,11 @@ class DashboardServer:
             try:
                 has_key = bool(json.loads(cfgp.read_text(encoding="utf-8")).get("gemini_api_key"))
             except Exception:
-                pass
+                _swallow_log.debug("ignored error", exc_info=True)
             try:
                 name = json.loads(ownerp.read_text(encoding="utf-8")).get("name", "")
             except Exception:
-                pass
+                _swallow_log.debug("ignored error", exc_info=True)
             return JSONResponse({"has_key": has_key, "name": name})
 
         @app.post("/api/setup")
@@ -1534,7 +1536,7 @@ class DashboardServer:
                     try:
                         dest.unlink(missing_ok=True)
                     except Exception:
-                        pass
+                        _swallow_log.debug("ignored error", exc_info=True)
                     return JSONResponse({"error": str(exc)}, status_code=500)
 
                 asyncio.create_task(self.broadcast({
@@ -1565,7 +1567,7 @@ class DashboardServer:
                 ):
                     files.append({"name": f.name, "size": f.stat().st_size})
             except Exception:
-                pass
+                _swallow_log.debug("ignored error", exc_info=True)
             return JSONResponse({"files": files})
 
         @app.get("/uploads/{filename}")

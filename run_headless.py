@@ -16,6 +16,8 @@ Usage:
 Upstream engine: Mark 51 / Mark-LI by FatihMakes (CC BY-NC 4.0) — see NOTICE.md.
 """
 import sys, os, asyncio, pathlib
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 ROOT = pathlib.Path(__file__).resolve().parent
 os.chdir(ROOT)
@@ -106,11 +108,11 @@ def _open_browser_when_ready(url):
             subprocess.Popen([chrome, "--app=" + url, "--start-fullscreen", "--new-window"])
             return
     except Exception:
-        pass
+        _swallow_log.debug("ignored error", exc_info=True)
     try:
         webbrowser.open(url)
     except Exception:
-        pass
+        _swallow_log.debug("ignored error", exc_info=True)
 
 
 def _run_dashboard_only():

@@ -27,6 +27,8 @@ from pathlib import Path
 
 import cv2
 import numpy as np
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -261,7 +263,7 @@ def run(parameters: dict, player=None, session_memory=None) -> str:
             try:
                 player.write_log(msg)
             except Exception:
-                pass
+                _swallow_log.debug("ignored error", exc_info=True)
 
     win        = getattr(player, "_win", None) if player else None
     frame_sig  = getattr(win, "_cam_frame_sig", None)
@@ -339,7 +341,7 @@ def run(parameters: dict, player=None, session_memory=None) -> str:
         try:
             cap.release()
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
         if view_open:
             stream_sig.emit(False)
 
@@ -367,7 +369,7 @@ def run(parameters: dict, player=None, session_memory=None) -> str:
                  f"Mode: {mode}"),
             )
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
 
     return (f"Pushup session finished ({end_reason}). Reps: {reps}"
             + (f" of the {target} targeted" if target else "")

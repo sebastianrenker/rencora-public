@@ -11,6 +11,8 @@ Engine: Mark-LI by FatihMakes (CC BY-NC 4.0) — siehe NOTICE.md.
 import json
 import urllib.parse
 import urllib.request
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 PLUGIN = {
     "name": "globe",
@@ -43,7 +45,7 @@ def _geocode(q):
             d = data[0]
             return (float(d["lat"]), float(d["lon"]), d.get("display_name", q))
     except Exception:
-        pass
+        _swallow_log.debug("ignored error", exc_info=True)
     return None
 
 
@@ -73,5 +75,5 @@ def run(parameters: dict, player=None, session_memory=None) -> str:
         try:
             player.write_log(f"JARVIS: Globus → {name} ({lat:.4f}, {lon:.4f})")
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
     return "Ich fliege auf dem Globus zu " + short + "."
