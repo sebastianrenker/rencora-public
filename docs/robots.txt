@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://sebastianrenker.github.io/rencora-public/sitemap.xml
