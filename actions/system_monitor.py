@@ -7,6 +7,8 @@ import platform
 import time
 
 import psutil
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 _OS = platform.system()  # "Windows" | "Darwin" | "Linux"
 
@@ -77,7 +79,7 @@ def _get_gpu_usage() -> float:
         h = pynvml.nvmlDeviceGetHandleByIndex(0)
         return float(pynvml.nvmlDeviceGetUtilizationRates(h).gpu)
     except Exception:
-        pass
+        _swallow_log.debug("ignored error", exc_info=True)
 
     return _nvml_gpu()
 
@@ -94,7 +96,7 @@ def _get_cpu_temp() -> float:
             if entries:
                 return entries[0].current
     except Exception:
-        pass
+        _swallow_log.debug("ignored error", exc_info=True)
 
     # Windows: wmi module (pure Python COM, zero subprocess)
     if _OS == "Windows":
@@ -105,7 +107,7 @@ def _get_cpu_temp() -> float:
             if tz:
                 return (tz[0].CurrentTemperature / 10.0) - 273.15
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
 
     return -1.0
 

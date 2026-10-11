@@ -13,6 +13,8 @@ import subprocess
 import threading
 import time
 from pathlib import Path
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 _FILE = Path(__file__).resolve().parent.parent / "config" / "alarms.json"
 _SAY = {"fn": None}          # set from run() when a player with request_say is available
@@ -51,7 +53,7 @@ def _find_ffplay():
             if "ffplay.exe" in files:
                 return os.path.join(root, "ffplay.exe")
     except Exception:
-        pass
+        _swallow_log.debug("ignored error", exc_info=True)
     return None
 
 
@@ -114,10 +116,10 @@ def _checker():
                             try:
                                 say("Sag dem Nutzer freundlich, dass sein Wecker '" + label + "' jetzt klingelt.")
                             except Exception:
-                                pass
+                                _swallow_log.debug("ignored error", exc_info=True)
                         _beep()
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
         time.sleep(20)
 
 
@@ -159,5 +161,5 @@ def run(parameters: dict, player=None, session_memory=None) -> str:
         try:
             player.write_log("JARVIS: " + out)
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
     return out

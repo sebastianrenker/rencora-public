@@ -11,6 +11,8 @@ Engine: Mark-LI by FatihMakes (CC BY-NC 4.0) — siehe NOTICE.md.
 import io
 import time
 from pathlib import Path
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 FRAME_PATH = Path(__file__).resolve().parent.parent / "config" / "vision_last.jpg"
 
@@ -34,7 +36,7 @@ def save_frame(image_bytes: bytes) -> None:
     try:
         FRAME_PATH.write_bytes(image_bytes)
     except Exception:
-        pass
+        _swallow_log.debug("ignored error", exc_info=True)
 
 
 def latest_frame_age() -> float:

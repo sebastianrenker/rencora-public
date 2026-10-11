@@ -4,6 +4,8 @@ Drop-in JARVIS plugin template.
 Copy this file, rename it (no leading underscore), fill in PLUGIN and run().
 No other file needs to change — JARVIS discovers this automatically at startup.
 """
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 PLUGIN = {
     "name": "my_plugin",                     # snake_case, unique, ^[a-zA-Z_][a-zA-Z0-9_]{0,63}$
@@ -41,5 +43,5 @@ def run(parameters: dict, player=None, session_memory=None) -> str:
         try:
             player.write_log(f"JARVIS: {result_text}")
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
     return result_text

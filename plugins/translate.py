@@ -5,6 +5,8 @@ Für den Dauer-Übersetzer sagst du z.B. 'Übersetzer-Modus Englisch' — dann �
 weitere Äußerung, bis du 'Übersetzer aus' sagst (das steuert Rencora über wiederholte Aufrufe).
 Engine: Mark-LI by FatihMakes (CC BY-NC 4.0) — siehe NOTICE.md.
 """
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 PLUGIN = {
     "name": "translate",
@@ -39,6 +41,6 @@ def run(parameters: dict, player=None, session_memory=None) -> str:
             if out:
                 return out.strip()
     except Exception:
-        pass
+        _swallow_log.debug("ignored error", exc_info=True)
     # Ohne Grok: Rencora (Gemini) übersetzt selbst
     return "Übersetze bitte ins " + target + ": " + text

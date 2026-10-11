@@ -3,6 +3,8 @@ Rencora Kinomodus — eine Szene: Licht dimmen + Film auf die Leinwand/Fire-TV +
 'Film ab', 'Kinomodus', 'mach Kinomodus an mit <Film>'. 'Kinomodus aus' beendet (Licht an, Video stopp).
 Engine: Mark-LI by FatihMakes (CC BY-NC 4.0) — siehe NOTICE.md.
 """
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 PLUGIN = {
     "name": "cinema_mode",
@@ -31,12 +33,12 @@ def run(parameters: dict, player=None, session_memory=None) -> str:
             from plugins import smarthome
             smarthome.run({"action": "on", "device": "Licht"})
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
         try:
             from plugins import music
             music._player().stop_video()
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
         return "Kinomodus beendet — Licht ist wieder an und das Video gestoppt."
 
     steps = []
@@ -48,13 +50,13 @@ def run(parameters: dict, player=None, session_memory=None) -> str:
             smarthome.run({"action": "set", "device": "Licht", "value": 15})
         steps.append("Licht gedimmt")
     except Exception:
-        pass
+        _swallow_log.debug("ignored error", exc_info=True)
     # 2) Hintergrundmusik leise
     try:
         from plugins import music
         music._player().set_volume(20)
     except Exception:
-        pass
+        _swallow_log.debug("ignored error", exc_info=True)
     # 3) Film auf die Leinwand / Fire-TV
     query = (parameters.get("query") or "").strip()
     if query:
@@ -63,7 +65,7 @@ def run(parameters: dict, player=None, session_memory=None) -> str:
             music._player().play_video(query, player)
             steps.append("Film läuft: " + query)
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
     else:
         steps.append("bereit für deinen Film — sag z.B. 'spiel <Titel> auf der Leinwand'")
     return "Kinomodus an — " + ", ".join(steps) + ". Sag 'Kinomodus aus' zum Beenden."

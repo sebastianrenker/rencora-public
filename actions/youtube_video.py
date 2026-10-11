@@ -8,6 +8,8 @@ import shutil
 from pathlib import Path
 from datetime import datetime
 from urllib.parse import quote_plus
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 try:
     import pyautogui
@@ -145,7 +147,7 @@ def _get_transcript(video_id: str) -> str | None:
         try:
             transcript = transcript_list.find_manually_created_transcript(lang_priority)
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
 
         if transcript is None:
             try:

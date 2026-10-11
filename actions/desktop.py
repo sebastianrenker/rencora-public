@@ -9,6 +9,8 @@ import tempfile
 import platform
 from pathlib import Path
 from datetime import datetime
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 try:
     import pyautogui
@@ -293,7 +295,7 @@ def set_wallpaper_from_url(url: str) -> str:
         try:
             tmp.unlink()
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
         return result
     except Exception as e:
         return f"Could not download wallpaper: {e}"

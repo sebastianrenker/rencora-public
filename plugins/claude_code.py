@@ -20,6 +20,8 @@ import shutil
 import subprocess
 import threading
 from pathlib import Path
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 _CFG = Path(__file__).resolve().parent.parent / "config" / "claude_code.json"
 
@@ -106,13 +108,13 @@ def run(parameters: dict, player=None, session_memory=None) -> str:
             try:
                 log("JARVIS(Claude): " + short)
             except Exception:
-                pass
+                _swallow_log.debug("ignored error", exc_info=True)
         if say:
             try:
                 say("Sag dem Nutzer kurz, dass Claude die Coding-Aufgabe erledigt hat, und fasse das Ergebnis "
                     "in 1-2 Saetzen zusammen: " + short)
             except Exception:
-                pass
+                _swallow_log.debug("ignored error", exc_info=True)
 
     threading.Thread(target=worker, daemon=True).start()
     where = Path(cwd).name

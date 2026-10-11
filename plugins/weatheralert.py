@@ -6,6 +6,8 @@ Engine: Mark-LI by FatihMakes (CC BY-NC 4.0) — siehe NOTICE.md.
 """
 import threading
 import time
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 _SAY = {"fn": None, "log": None}
 _STATE = {"on": True, "last_warn": 0.0, "started": False}
@@ -65,14 +67,14 @@ def _watch():
                     say = _SAY.get("fn")
                     if _SAY.get("log"):
                         try: _SAY["log"](f"JARVIS: Unwetter-Warnung {city}: {sev}")
-                        except Exception: pass
+                        except Exception: _swallow_log.debug("ignored error", exc_info=True)
                     if say:
                         try:
                             say(f"Warne den Nutzer ruhig und deutlich vor Unwetter in {city}: {sev}. "
                                 f"Rate, sich darauf einzustellen.")
-                        except Exception: pass
+                        except Exception: _swallow_log.debug("ignored error", exc_info=True)
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
         time.sleep(1800)   # alle 30 Minuten
 
 

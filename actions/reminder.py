@@ -6,6 +6,8 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 _CNW: dict = (
     {"creationflags": subprocess.CREATE_NO_WINDOW}
@@ -188,7 +190,7 @@ def _schedule_windows(target_dt: datetime, task_name: str,
     try:
         xml_path.unlink(missing_ok=True)
     except Exception:
-        pass
+        _swallow_log.debug("ignored error", exc_info=True)
 
     if result.returncode != 0:
         script_path.unlink(missing_ok=True)

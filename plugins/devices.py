@@ -9,6 +9,8 @@ Engine: Mark-LI by FatihMakes (CC BY-NC 4.0) — see NOTICE.md.
 import re
 import socket
 import subprocess
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 try:
     import requests
@@ -57,7 +59,7 @@ def _ssdp():
                 entry["server"] = server.group(1).strip()
         s.close()
     except Exception:
-        pass
+        _swallow_log.debug("ignored error", exc_info=True)
     return found
 
 
@@ -113,5 +115,5 @@ def run(parameters: dict, player=None, session_memory=None) -> str:
         try:
             player.write_log("JARVIS: " + out)
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
     return out

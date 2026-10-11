@@ -6,6 +6,8 @@ import re
 import string
 import subprocess
 import sys
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 if platform.system() == "Windows":
     _WIN_HIDE: dict = {"creationflags": subprocess.CREATE_NO_WINDOW}
@@ -72,7 +74,7 @@ def _safe_screenshot_path(requested: str | None) -> Path:
                 p.parent.mkdir(parents=True, exist_ok=True)
                 return p
     except Exception:
-        pass
+        _swallow_log.debug("ignored error", exc_info=True)
     return fallback
 
 def _require_pyautogui():
@@ -151,7 +153,7 @@ def _user_profile() -> dict:
             identity = data.get("identity", {})
             return {k: v.get("value", "") for k, v in identity.items()}
     except Exception:
-        pass
+        _swallow_log.debug("ignored error", exc_info=True)
     return {}
 
 def _type(text: str, interval: float = 0.03) -> str:

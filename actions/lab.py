@@ -7,6 +7,8 @@ Engine: Mark-LI by FatihMakes (CC BY-NC 4.0) — siehe NOTICE.md.
 import json
 import time
 from pathlib import Path
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 _CACHE = Path(__file__).resolve().parent.parent / "config" / "lab_last.json"
 
@@ -97,7 +99,7 @@ def save_labels(labels, caption=""):
         _CACHE.write_text(json.dumps({"labels": labels or [], "caption": caption or "", "at": time.time()},
                                      ensure_ascii=False), encoding="utf-8")
     except Exception:
-        pass
+        _swallow_log.debug("ignored error", exc_info=True)
 
 
 def load_state(max_age=120):
@@ -107,7 +109,7 @@ def load_state(max_age=120):
         if time.time() - d.get("at", 0) < max_age:
             return (d.get("labels", []), d.get("caption", ""))
     except Exception:
-        pass
+        _swallow_log.debug("ignored error", exc_info=True)
     return ([], "")
 
 

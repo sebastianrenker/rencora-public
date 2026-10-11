@@ -10,6 +10,8 @@ most recently uploaded file when no path is given.
 Engine: Mark-LI by FatihMakes (CC BY-NC 4.0) — see NOTICE.md.
 """
 from pathlib import Path
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 _BASE = Path(__file__).resolve().parent.parent
 # The dashboard saves uploads to the first writable of these (see server _make_uploads_dir).
@@ -59,7 +61,7 @@ def _latest_upload():
             if d.exists():
                 files += [p for p in d.iterdir() if p.is_file()]
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
     if not files:
         return None
     try:
@@ -139,7 +141,7 @@ def _explain(text):
             if out:
                 return out
     except Exception:
-        pass
+        _swallow_log.debug("ignored error", exc_info=True)
     try:
         from actions.file_processor import _gemini_client
         return (_gemini_client().generate_content([full]).text or "").strip()
@@ -199,5 +201,5 @@ def run(parameters: dict, player=None, session_memory=None) -> str:
         try:
             player.write_log("JARVIS: " + out[:400])
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
     return out

@@ -6,6 +6,8 @@ Engine: Mark-LI by FatihMakes (CC BY-NC 4.0) — siehe NOTICE.md.
 """
 import json
 from pathlib import Path
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 _FILE = Path(__file__).resolve().parent.parent / "config" / "wall_tasks.json"
 
@@ -38,7 +40,7 @@ def _save(tasks):
     try:
         _FILE.write_text(json.dumps({"tasks": tasks}, ensure_ascii=False, indent=2), encoding="utf-8")
     except Exception:
-        pass
+        _swallow_log.debug("ignored error", exc_info=True)
 
 
 def run(parameters: dict, player=None, session_memory=None) -> str:

@@ -12,6 +12,8 @@ import time
 from pathlib import Path
 
 import psutil
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 if platform.system() == "Windows":
     _WIN_HIDE: dict = {"creationflags": subprocess.CREATE_NO_WINDOW}
@@ -163,7 +165,7 @@ def retheme_all_widgets(old: dict[str, str], new: dict[str, str]) -> None:
                     w.setStyleSheet(s2)
             w.update()
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
 
 
 def qcol(h: str, a: int = 255) -> QColor:
@@ -233,7 +235,7 @@ class _SysMetrics:
             try:
                 self._update()
             except Exception:
-                pass
+                _swallow_log.debug("ignored error", exc_info=True)
             time.sleep(1.5)
 
     def _update(self):
@@ -271,7 +273,7 @@ class _SysMetrics:
             h = pynvml.nvmlDeviceGetHandleByIndex(0)
             return float(pynvml.nvmlDeviceGetUtilizationRates(h).gpu)
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
 
         # Windows: nvml.dll via ctypes (already cached in _nvml_gpu_windows)
         if _OS == "Windows":
@@ -293,7 +295,7 @@ class _SysMetrics:
             nv.nvmlDeviceGetUtilizationRates(dev, ctypes.byref(u))
             return float(u.gpu)
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
 
         return -1.0   # N/A — zero subprocess on all platforms
 
@@ -309,7 +311,7 @@ class _SysMetrics:
                 if entries:
                     return entries[0].current
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
 
         # Windows: wmi module (pure Python COM, zero subprocess)
         if _OS == "Windows":
@@ -320,7 +322,7 @@ class _SysMetrics:
                 if tz:
                     return (tz[0].CurrentTemperature / 10.0) - 273.15
             except Exception:
-                pass
+                _swallow_log.debug("ignored error", exc_info=True)
 
         return -1.0   # N/A — zero subprocess on all platforms
 
@@ -2058,7 +2060,7 @@ class MainWindow(QMainWindow):
                 cfg = _j.loads((CONFIG_DIR / "api_keys.json").read_text())
                 cam_idx = int(cfg.get("camera_index", 0))
             except Exception:
-                pass
+                _swallow_log.debug("ignored error", exc_info=True)
             try:
                 backend = cv2.CAP_DSHOW if _OS == "Windows" else cv2.CAP_ANY
             except AttributeError:
@@ -2237,7 +2239,7 @@ class MainWindow(QMainWindow):
             try:
                 os.unlink(tmp)
             except Exception:
-                pass
+                _swallow_log.debug("ignored error", exc_info=True)
 
     @staticmethod
     def _get_desktop_dir() -> Path:
@@ -2278,7 +2280,7 @@ class MainWindow(QMainWindow):
                     if p.is_dir():
                         return p
             except Exception:
-                pass
+                _swallow_log.debug("ignored error", exc_info=True)
 
             # ── 2) Registry: User Shell Folders (may contain %VARS%) ──────
             try:
@@ -2292,7 +2294,7 @@ class MainWindow(QMainWindow):
                 if p.is_dir():
                     return p
             except Exception:
-                pass
+                _swallow_log.debug("ignored error", exc_info=True)
 
         elif _os == "Linux":
             # ── xdg-user-dir honours localized names (~/Masaüstü, …) ──────
@@ -2303,7 +2305,7 @@ class MainWindow(QMainWindow):
                 if out.stdout.strip() and p != home and p.is_dir():
                     return p
             except Exception:
-                pass
+                _swallow_log.debug("ignored error", exc_info=True)
             try:
                 cfg = home / ".config" / "user-dirs.dirs"
                 for line in cfg.read_text(encoding="utf-8").splitlines():
@@ -2314,7 +2316,7 @@ class MainWindow(QMainWindow):
                         if p != home and p.is_dir():
                             return p
             except Exception:
-                pass
+                _swallow_log.debug("ignored error", exc_info=True)
 
         # macOS: ~/Desktop is always the real path (localization is
         # display-only). Everything else lands here as a last resort.
@@ -2397,7 +2399,7 @@ class MainWindow(QMainWindow):
                         )
                     )
                 except Exception:
-                    pass  # icon is optional
+                    _swallow_log.debug("ignored error", exc_info=True)  # icon is optional
 
             # ── Linux — .desktop file (Terminal=false, no console) ────────────
             else:
@@ -3271,7 +3273,7 @@ class MainWindow(QMainWindow):
             if len(text) >= 10:
                 self._clipboard_sig.emit(text)
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
 
     def _show_clipboard_panel(self, text: str):
         self._clipboard_panel.show_clipboard(text)

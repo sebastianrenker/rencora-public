@@ -13,6 +13,8 @@ from typing import Optional
 
 import numpy as np
 import sounddevice as sd
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 try:
     import cv2
@@ -352,7 +354,7 @@ class _VisionSession:
                             try:
                                 self._player.stop_camera_stream()
                             except Exception:
-                                pass
+                                _swallow_log.debug("ignored error", exc_info=True)
                         asyncio.create_task(_deferred_close())
 
         except Exception as e:

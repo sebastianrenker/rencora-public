@@ -11,6 +11,8 @@ import shutil
 import subprocess
 import threading
 import time
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 PLUGIN = {
     "name": "timer",
@@ -43,7 +45,7 @@ def _find_ffplay():
             if "ffplay.exe" in files:
                 return os.path.join(root, "ffplay.exe")
     except Exception:
-        pass
+        _swallow_log.debug("ignored error", exc_info=True)
     return None
 
 
@@ -80,7 +82,7 @@ class TimerManager:
                 try:
                     say("Sag dem Nutzer freundlich und kurz, dass der Timer '" + label + "' jetzt abgelaufen ist.")
                 except Exception:
-                    pass
+                    _swallow_log.debug("ignored error", exc_info=True)
             _alarm()
         t = threading.Timer(total_seconds, fire)
         t.daemon = True
@@ -157,5 +159,5 @@ def run(parameters: dict, player=None, session_memory=None) -> str:
         try:
             player.write_log("JARVIS: " + out)
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
     return out

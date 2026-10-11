@@ -14,6 +14,8 @@ import socket
 import subprocess
 import time
 import pathlib
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 # When frozen to an .exe, __file__ is a temp dir — use the exe's own folder instead
 # (place Rencora.exe inside the Mark-LI folder).
@@ -85,7 +87,7 @@ def main():
             subprocess.Popen([_python(), str(ROOT / "run_headless.py"), "--local"],
                              cwd=str(ROOT), creationflags=DETACHED, close_fds=True)
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
         for _ in range(90):                      # wait up to ~45s for Gemini/dashboard boot
             if _up():
                 break
@@ -98,7 +100,7 @@ def main():
             subprocess.Popen([browser, "--app=" + URL, "--start-fullscreen", "--new-window"])
             return
     except Exception:
-        pass
+        _swallow_log.debug("ignored error", exc_info=True)
     import webbrowser
     webbrowser.open(URL)
 

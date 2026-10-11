@@ -6,6 +6,8 @@ Browser um die Webcam zu kämpfen.
 
 Engine: Mark-LI by FatihMakes (CC BY-NC 4.0) — siehe NOTICE.md.
 """
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 PLUGIN = {
     "name": "look",
@@ -47,5 +49,5 @@ def run(parameters: dict, player=None, session_memory=None) -> str:
         try:
             player.write_log("JARVIS: " + out[:200])
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
     return out

@@ -17,6 +17,8 @@ import shutil
 import subprocess
 import threading
 from collections import deque
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 PLUGIN = {
     "name": "music",
@@ -57,7 +59,7 @@ def _find_ffplay():
                 if "ffplay.exe" in files:
                     return os.path.join(root, "ffplay.exe")
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
     return None
 
 
@@ -168,7 +170,7 @@ class MusicPlayer:
             try:
                 p.terminate()
             except Exception:
-                pass
+                _swallow_log.debug("ignored error", exc_info=True)
             return "Ueberspringe zum naechsten Titel."
         return "Es laeuft gerade keine Musik."
 
@@ -181,7 +183,7 @@ class MusicPlayer:
             try:
                 p.terminate()
             except Exception:
-                pass
+                _swallow_log.debug("ignored error", exc_info=True)
         self.current_title = None
         return "Musik gestoppt."
 
@@ -225,7 +227,7 @@ class MusicPlayer:
                 if tv(vid, title):
                     return "Spiele auf dem Fire TV: " + title + "."
             except Exception:
-                pass
+                _swallow_log.debug("ignored error", exc_info=True)
         # 2) PC fallback: open it in the browser
         try:
             import webbrowser
@@ -241,7 +243,7 @@ class MusicPlayer:
                 self.video_proc = None
                 return "Video gestoppt."
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
         return "Es laeuft gerade kein Video."
 
 
@@ -279,5 +281,5 @@ def run(parameters: dict, player=None, session_memory=None) -> str:
         try:
             player.write_log("JARVIS: " + out)
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
     return out

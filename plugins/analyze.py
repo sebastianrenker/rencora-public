@@ -4,6 +4,8 @@ Technik, Alltagsgegenstände. Erkennung läuft kostenlos im Browser (Objekt-Labo
 die Erklärung kommt von Grok/Groq — komplett ohne Gemini-Kontingent.
 Engine: Mark-LI by FatihMakes (CC BY-NC 4.0) — siehe NOTICE.md.
 """
+import logging as _logging
+_swallow_log = _logging.getLogger(__name__)
 
 PLUGIN = {
     "name": "analyze_object",
@@ -41,5 +43,5 @@ def run(parameters: dict, player=None, session_memory=None) -> str:
         try:
             player.write_log("JARVIS: " + out[:200])
         except Exception:
-            pass
+            _swallow_log.debug("ignored error", exc_info=True)
     return out
