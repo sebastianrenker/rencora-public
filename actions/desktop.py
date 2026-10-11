@@ -1,4 +1,5 @@
 #desktop.py
+import ast
 import os
 import sys
 import json
@@ -35,6 +36,48 @@ def _get_desktop() -> Path:
             return Path(xdg)
     return Path.home() / "Desktop"
 
+def _safe_getattr(obj, name, *default):
+    """getattr/hasattr replacement that refuses private and dunder names.
+
+    The generated code runs with a reduced __builtins__, but attribute access
+    on any object (``().__class__.__bases__`` ...) is the classic way out of
+    such a namespace, so underscore-prefixed names are not reachable.
+    """
+    if isinstance(name, str) and name.startswith("_"):
+        raise AttributeError(f"access to {name!r} is not allowed")
+    return getattr(obj, name, *default)
+
+
+def _safe_hasattr(obj, name) -> bool:
+    try:
+        _safe_getattr(obj, name)
+    except AttributeError:
+        return False
+    return True
+
+
+def _static_guard(code: str) -> str | None:
+    """Return a reason string if the generated code must not run, else None.
+
+    Rejects imports and any private/dunder attribute or name, which closes the
+    object-graph escape routes out of the restricted namespace. Desktop
+    capabilities (Path, pyautogui, shutil copy helpers, ctypes on Windows)
+    stay available because they are the feature.
+    """
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return None  # compile() reports the syntax error with its usual message
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            return "imports are not allowed"
+        if isinstance(node, ast.Attribute) and node.attr.startswith("_"):
+            return f"access to private attribute {node.attr!r} is not allowed"
+        if isinstance(node, ast.Name) and node.id.startswith("__"):
+            return f"use of {node.id!r} is not allowed"
+    return None
+
+
 def _build_sandbox() -> dict:
     import time
 
@@ -43,7 +86,7 @@ def _build_sandbox() -> dict:
         "len": len, "str": str, "int": int, "float": float,
         "bool": bool, "list": list, "dict": dict, "tuple": tuple,
         "range": range, "enumerate": enumerate, "sorted": sorted,
-        "isinstance": isinstance, "hasattr": hasattr, "getattr": getattr,
+        "isinstance": isinstance, "hasattr": _safe_hasattr, "getattr": _safe_getattr,
         "max": max, "min": min, "sum": sum, "abs": abs,
         "zip": zip, "map": map, "filter": filter,
     }
@@ -88,6 +131,11 @@ def _execute_generated_code(code: str, player=None) -> str:
     if code.startswith("```"):
         lines = code.split("\n")
         code  = "\n".join(lines[1:-1]).strip()
+
+    blocked = _static_guard(code)
+    if blocked:
+        print(f"[Desktop] Generated code blocked: {blocked}")
+        return f"This action was blocked for safety: {blocked}."
 
     sandbox      = _build_sandbox()
     output_lines = []
