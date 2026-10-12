@@ -80,6 +80,103 @@ def _static_guard(code: str) -> str | None:
     return None
 
 
+def _sensitive_dirs() -> list[str]:
+    """Directories generated code may neither read nor write (normalised)."""
+    home = Path.home()
+    dirs = [
+        _get_base_dir() / "config",
+        home / ".ssh", home / ".aws", home / ".gnupg", home / ".azure",
+        home / ".kube", home / ".config" / "gh",
+    ]
+    return [os.path.normcase(os.path.realpath(d)) for d in dirs]
+
+
+def _is_sensitive(path) -> bool:
+    real = os.path.normcase(os.path.realpath(os.fspath(path)))
+    for d in _sensitive_dirs():
+        if real == d or real.startswith(d + os.sep):
+            return True
+    return False
+
+
+def _deny_sensitive(path) -> None:
+    if _is_sensitive(path):
+        raise PermissionError("access to this location is not allowed")
+
+
+_BasePath = type(Path())
+
+
+class _GuardedPath(_BasePath):
+    """Path for generated code: inspection, listing and reading only.
+
+    Matches what the model is told it may do ("file/folder inspection only, no
+    deletion"): destructive or writing operations raise PermissionError, and
+    credential locations are unreadable. Creating folders/files and copying via
+    the shutil helpers stay available.
+    """
+
+    def _no(self, what: str):
+        raise PermissionError(f"{what} is not allowed in generated code")
+
+    def open(self, mode="r", *args, **kwargs):
+        if any(c in mode for c in "wax+"):
+            self._no("writing through Path.open")
+        _deny_sensitive(self)
+        return super().open(mode, *args, **kwargs)
+
+    def read_text(self, *args, **kwargs):
+        _deny_sensitive(self)
+        return super().read_text(*args, **kwargs)
+
+    def read_bytes(self):
+        _deny_sensitive(self)
+        return super().read_bytes()
+
+    def iterdir(self):
+        _deny_sensitive(self)
+        return super().iterdir()
+
+    def unlink(self, *args, **kwargs):
+        self._no("deleting")
+
+    def rmdir(self):
+        self._no("deleting")
+
+    def rename(self, *args, **kwargs):
+        self._no("renaming or moving")
+
+    def replace(self, *args, **kwargs):
+        self._no("renaming or moving")
+
+    def write_text(self, *args, **kwargs):
+        self._no("writing")
+
+    def write_bytes(self, *args, **kwargs):
+        self._no("writing")
+
+    def symlink_to(self, *args, **kwargs):
+        self._no("creating links")
+
+    def hardlink_to(self, *args, **kwargs):
+        self._no("creating links")
+
+    def chmod(self, *args, **kwargs):
+        self._no("changing permissions")
+
+
+def _guarded_copy2(src, dst, **kwargs):
+    _deny_sensitive(src)
+    _deny_sensitive(dst)
+    return shutil.copy2(src, dst, **kwargs)
+
+
+def _guarded_copytree(src, dst, **kwargs):
+    _deny_sensitive(src)
+    _deny_sensitive(dst)
+    return shutil.copytree(src, dst, **kwargs)
+
+
 def _build_sandbox() -> dict:
     import time
 
@@ -95,12 +192,12 @@ def _build_sandbox() -> dict:
 
     sandbox = {
         "__builtins__": safe_builtins,
-        "Path": Path,
+        "Path": _GuardedPath,
         "time": time,
         "shutil": type("shutil", (), {
-            "copy2":      shutil.copy2,
-            "copytree":   shutil.copytree,
-            "disk_usage": shutil.disk_usage,
+            "copy2":      staticmethod(_guarded_copy2),
+            "copytree":   staticmethod(_guarded_copytree),
+            "disk_usage": staticmethod(shutil.disk_usage),
         })(),
         "os_path": os.path,  
     }
@@ -139,6 +236,31 @@ def _execute_generated_code(code: str, player=None) -> str:
         print(f"[Desktop] Generated code blocked: {blocked}")
         return f"This action was blocked for safety: {blocked}."
 
+    if getattr(sys, "frozen", False):
+        # A frozen build cannot re-launch itself as a plain interpreter.
+        return _run_in_namespace(code)
+    return _run_in_child_process(code)
+
+
+_EXEC_TIMEOUT_S = 60
+
+# Only these variables are handed to the child; API keys and tokens in the
+# parent's environment never reach generated code.
+_CHILD_ENV_KEYS = (
+    "PATH", "PATHEXT", "SYSTEMROOT", "WINDIR", "COMSPEC", "TEMP", "TMP", "TMPDIR",
+    "USERPROFILE", "HOMEDRIVE", "HOMEPATH", "APPDATA", "LOCALAPPDATA", "HOME",
+    "USERNAME", "USER", "LOGNAME", "DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY",
+    "XDG_RUNTIME_DIR", "XDG_DESKTOP_DIR", "DBUS_SESSION_BUS_ADDRESS", "LANG", "LC_ALL",
+)
+
+
+def _child_env() -> dict:
+    env = {k: os.environ[k] for k in _CHILD_ENV_KEYS if k in os.environ}
+    env["PYTHONUTF8"] = "1"
+    return env
+
+
+def _run_in_namespace(code: str) -> str:
     sandbox      = _build_sandbox()
     output_lines = []
     sandbox["__builtins__"]["print"] = lambda *a: output_lines.append(" ".join(str(x) for x in a))
@@ -149,6 +271,33 @@ def _execute_generated_code(code: str, player=None) -> str:
     except Exception as e:
         print(f"[Desktop] Exec error: {e}\nCode:\n{code[:300]}")
         return f"Execution error: {e}"
+
+
+def _run_in_child_process(code: str) -> str:
+    """Run already-guarded code in a separate interpreter with a time limit.
+
+    The child gets a scrubbed environment and a throw-away working directory,
+    and is killed after ``_EXEC_TIMEOUT_S`` seconds, so a hanging or runaway
+    snippet cannot freeze the assistant.
+    """
+    runner = Path(__file__).resolve().parent / "_desktop_runner.py"
+    root = str(Path(__file__).resolve().parent.parent)
+    kwargs = {}
+    if _OS == "Windows":
+        kwargs["creationflags"] = 0x08000000  # CREATE_NO_WINDOW
+    with tempfile.TemporaryDirectory(prefix="rencora_exec_") as workdir:
+        try:
+            proc = subprocess.run(
+                [sys.executable, "-E", "-s", str(runner), root],
+                input=code, capture_output=True, text=True, encoding="utf-8",
+                timeout=_EXEC_TIMEOUT_S, cwd=workdir, env=_child_env(), **kwargs,
+            )
+        except subprocess.TimeoutExpired:
+            return f"Execution error: timed out after {_EXEC_TIMEOUT_S} s."
+    if proc.returncode != 0:
+        _swallow_log.debug("desktop runner failed: %s", proc.stderr[-300:])
+        return "Execution error: the desktop helper process failed."
+    return proc.stdout.rstrip("\r\n") or "Done."
 
 
 def _ask_gemini_for_desktop_action(task: str) -> str:
