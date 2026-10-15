@@ -38,21 +38,64 @@ drive from a PC, phone, or projector.
 
 ## 🚀 Installation
 
-```bash
-git clone https://github.com/<your-name>/rencora.git
-cd rencora
-python -m venv .venv && .venv\Scripts\activate      # Windows (macOS/Linux: source .venv/bin/activate)
-pip install -r requirements.txt
+### Windows — easiest way (no command line needed)
+
+1. Install **Python 3.12** from https://www.python.org/downloads/windows/ and tick
+   **"Add python.exe to PATH"** in the installer.
+2. Download Rencora: on this page click **Code → Download ZIP**, then unzip it
+   (right-click → *Extract All*).
+3. In the unzipped folder, double-click **`install.bat`** and wait until it says *Done*.
+4. Double-click **`start.bat`**. The browser opens the setup page — paste your
+   Gemini API key there. Done.
+
+### Windows — with git (PowerShell)
+
+```powershell
+git clone https://github.com/sebastianrenker/rencora-public.git
+cd rencora-public
+.\install.bat
+.\start.bat
 ```
 
-### Configuration (you set it up yourself)
+<details>
+<summary>Manual setup in PowerShell (without the scripts)</summary>
 
-All templates live in `config/` as `*.example.json`. Copy the ones you need and
-drop `.example` from the filename:
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe run_headless.py --local --open
+```
+
+Note: Windows PowerShell 5.1 does not support `&&` — run each line separately.
+If you want to *activate* the venv and get an "execution of scripts is disabled"
+error, run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once (or just call
+`.venv\Scripts\python.exe` directly as above — no activation needed).
+</details>
+
+### macOS / Linux
 
 ```bash
-# at minimum your Gemini key:
-copy config\api_keys.example.json config\api_keys.json     # macOS/Linux: cp
+git clone https://github.com/sebastianrenker/rencora-public.git
+cd rencora-public
+bash install.sh
+bash start.sh
+```
+
+Then open **http://127.0.0.1:8000/setup** and enter your Gemini API key.
+
+### Configuration (optional, by hand)
+
+The first start opens a setup page for your Gemini key. Everything else can be set
+by copying a template from `config/` and dropping `.example` from the filename:
+
+```powershell
+# Windows (PowerShell)
+Copy-Item config\api_keys.example.json config\api_keys.json
+```
+
+```bash
+# macOS / Linux
+cp config/api_keys.example.json config/api_keys.json
 ```
 
 | File | Purpose |
@@ -71,10 +114,13 @@ copy config\api_keys.example.json config\api_keys.json     # macOS/Linux: cp
 
 ## ▶️ Running
 
+Use `start.bat` (Windows) or `bash start.sh` (macOS/Linux). Or by hand, from the
+project folder:
+
 ```bash
-python run_headless.py            # headless (dashboard on http://localhost:8000)
-# or with GUI:
-python main.py
+.venv/Scripts/python run_headless.py --local --open   # Windows (macOS/Linux: .venv/bin/python)
+# or with the desktop GUI:
+.venv/Scripts/python main.py
 ```
 
 Then open **http://localhost:8000** in the browser — that is the home hub.
