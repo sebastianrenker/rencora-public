@@ -1151,20 +1151,35 @@ class JarvisLive:
                 {"data": data, "mime_type": "audio/pcm;rate=16000"}
             )
 
-        try:
-            with sd.InputStream(
-                samplerate=SEND_SAMPLE_RATE,
-                channels=CHANNELS,
-                dtype="int16",
-                blocksize=CHUNK_SIZE,
-                callback=callback,
-            ):
-                print("[JARVIS] 🎤 Mic stream open")
-                while True:
-                    await asyncio.sleep(0.1)
-        except Exception as e:
-            print(f"[JARVIS] ❌ Mic: {e}")
-            raise
+        # A missing/blocked microphone must not tear down the whole Live session
+        # (that caused an endless SLEEPING/THINKING reconnect loop). Report it once
+        # and keep retrying; text commands from the dashboard keep working meanwhile.
+        reported = False
+        while True:
+            try:
+                with sd.InputStream(
+                    samplerate=SEND_SAMPLE_RATE,
+                    channels=CHANNELS,
+                    dtype="int16",
+                    blocksize=CHUNK_SIZE,
+                    callback=callback,
+                ):
+                    print("[JARVIS] 🎤 Mic stream open")
+                    if reported:
+                        await self._notify_sys("Mikrofon verbunden.")
+                    reported = False
+                    while True:
+                        await asyncio.sleep(0.1)
+            except Exception as e:
+                print(f"[JARVIS] ❌ Mic: {e}")
+                if not reported:
+                    reported = True
+                    await self._notify_sys(
+                        f"Mikrofon nicht verfügbar ({e}). Prüfe: Mikrofon angeschlossen, "
+                        "Windows-Einstellungen → Datenschutz → Mikrofon → Desktop-Apps erlauben. "
+                        "Neuer Versuch alle 5 s."
+                    )
+                await asyncio.sleep(5)
 
     async def _receive_audio(self):
         print("[JARVIS] 👂 Recv started")
@@ -1285,13 +1300,30 @@ class JarvisLive:
     async def _play_audio(self):
         print("[JARVIS] 🔊 Play started")
 
-        stream = sd.RawOutputStream(
-            samplerate=RECEIVE_SAMPLE_RATE,
-            channels=CHANNELS,
-            dtype="int16",
-            blocksize=CHUNK_SIZE,
-        )
-        stream.start()
+        # Same as the mic: no usable speaker must not kill the session.
+        reported = False
+        while True:
+            try:
+                stream = sd.RawOutputStream(
+                    samplerate=RECEIVE_SAMPLE_RATE,
+                    channels=CHANNELS,
+                    dtype="int16",
+                    blocksize=CHUNK_SIZE,
+                )
+                stream.start()
+                break
+            except Exception as e:
+                print(f"[JARVIS] ❌ Speaker: {e}")
+                if not reported:
+                    reported = True
+                    await self._notify_sys(
+                        f"Lautsprecher nicht verfügbar ({e}). Prüfe das Standard-Ausgabegerät. "
+                        "Neuer Versuch alle 5 s."
+                    )
+                while not self.audio_in_queue.empty():   # drop audio we cannot play
+                    self.audio_in_queue.get_nowait()
+                self.set_speaking(False)
+                await asyncio.sleep(5)
 
         try:
             while True:
@@ -1653,6 +1685,39 @@ class JarvisLive:
                 print(f"[Dashboard] Command error: {e}")
                 await asyncio.sleep(0.5)
 
+    async def _notify_sys(self, text: str):
+        """Show a system message in the desktop log and on every dashboard surface."""
+        try:
+            self.ui.write_log(f"SYS: {text}")
+        except Exception:
+            _swallow_log.debug("ignored error", exc_info=True)
+        if getattr(self, "_dashboard", None):
+            try:
+                await self._dashboard.broadcast({"type": "sys", "text": text})
+            except Exception:
+                _swallow_log.debug("ignored error", exc_info=True)
+
+    @staticmethod
+    def _explain_conn_error(err: str) -> str:
+        """Turn a Gemini Live connection error into a hint a normal user can act on."""
+        low = err.lower()
+        if "resource_exhausted" in low or "429" in err or "quota" in low:
+            return ("Gemini-Kontingent erschöpft (429). Warte einige Minuten oder nutze einen "
+                    "API-Key mit höherem Limit / Abrechnung in Google AI Studio.")
+        if "permission_denied" in low or "403" in err:
+            return ("Zugriff verweigert (403). Der API-Key hat keinen Zugriff auf die Gemini Live API "
+                    "(Key neu erstellen auf aistudio.google.com/apikey).")
+        if "location" in low and "not supported" in low:
+            return "Gemini ist in dieser Region nicht verfügbar."
+        if "not found" in low or "404" in err or "not supported" in low:
+            return ("Live-Modell nicht verfügbar für diesen Key/diese Region (404). "
+                    "Rencora aktualisieren oder anderen Key testen.")
+        if any(k in err for k in ("getaddrinfo", "Cannot connect", "timed out", "TimeoutError",
+                                   "ConnectionRefusedError", "ssl", "SSL", "certificate")):
+            return ("Keine Verbindung zu Google (Netzwerk, Firewall, Proxy oder Antivirus "
+                    "blockiert generativelanguage.googleapis.com).")
+        return "Verbindung zu Gemini abgebrochen."
+
     # ── main loop ───────────────────────────────────────────────────────────
 
     async def run(self):
@@ -1741,8 +1806,18 @@ class JarvisLive:
                 # externally, which `except Exception` would miss, letting the
                 # exception escape the while-loop and causing asyncio.run() to
                 # start shutdown — resulting in "executor after shutdown" errors).
-                err_str = str(e)
-                print(f"[JARVIS] Error ({type(e).__name__}): {e}")
+                # A TaskGroup failure only says "unhandled errors in a TaskGroup";
+                # the real cause (quota, bad key, network…) sits in the sub-exceptions.
+                def _leaves(ex):
+                    subs = getattr(ex, "exceptions", None)
+                    if subs:
+                        for s in subs:
+                            yield from _leaves(s)
+                    else:
+                        yield ex
+                err_str = " | ".join(
+                    f"{type(x).__name__}: {x}" for x in _leaves(e)) or str(e)
+                print(f"[JARVIS] Error ({type(e).__name__}): {err_str}")
                 traceback.print_exc()
 
                 # Enhanced audio features rejected by the server (preview API
@@ -1776,15 +1851,20 @@ class JarvisLive:
                     "TimeoutError", "timed out", "getaddrinfo", "CancelledError",
                     "ConnectionRefusedError", "OSError", "Cannot connect",
                 ))
-                if is_net_err:
-                    _conn_backoff = min(getattr(self, "_conn_backoff", 3) * 2, 60)
-                    self._conn_backoff = _conn_backoff
-                    self.ui.write_log(
-                        f"NET: Bağlantı kurulamadı — {_conn_backoff}s sonra tekrar deneniyor. "
-                        "(VPN gerekiyor olabilir)"
-                    )
+                is_quota = ("RESOURCE_EXHAUSTED" in err_str or "429" in err_str
+                            or "quota" in err_str.lower())
+                if is_quota:
+                    # Hammering a 429 every 3 s only keeps the quota exhausted.
+                    self._conn_backoff = 60
+                elif is_net_err:
+                    self._conn_backoff = min(getattr(self, "_conn_backoff", 3) * 2, 60)
                 else:
                     self._conn_backoff = 3
+                short = err_str.strip().splitlines()[0][:160] if err_str.strip() else type(e).__name__
+                await self._notify_sys(
+                    f"{self._explain_conn_error(err_str)} Neuer Versuch in {self._conn_backoff}s. "
+                    f"(Details: {short})"
+                )
             finally:
                 self.session = None
                 # Only save if there was a real conversation (≥3 turns)
